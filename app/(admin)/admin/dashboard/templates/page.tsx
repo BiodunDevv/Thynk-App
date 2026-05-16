@@ -8,13 +8,14 @@ import {
   Plus, FileText, Search, Lock, Globe, Layers,
   Code2, GraduationCap, Megaphone, PenLine, Briefcase,
   Palette, ChevronRight, X, RefreshCw, Eye, EyeOff,
-  Tag, Sparkles, ImageIcon,
+  Tag, ImageIcon, ToggleLeft, ToggleRight, Trash2,
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { getTemplates, type TemplateRecord } from "@/lib/api/templates";
-import { createTemplate, type CreateTemplatePayload } from "@/lib/api/admin";
+import { getAdminTemplates, createTemplate, toggleTemplate, deleteTemplate, type AdminTemplate, type CreateTemplatePayload } from "@/lib/api/admin";
 import { useAdminSession } from "@/lib/auth/admin-session";
+
+type TemplateRecord = AdminTemplate;
 
 /* ── category meta ───────────────────────────────────────────────── */
 
@@ -37,11 +38,22 @@ const CATEGORIES = Object.keys(CATEGORY_META);
 
 function TemplateCard({
   template,
+  token,
   onClick,
 }: {
   template: TemplateRecord;
+  token: string;
   onClick: () => void;
 }) {
+  const qc = useQueryClient();
+  const toggleMut = useMutation({
+    mutationFn: () => toggleTemplate(token, template.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-templates"] }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => deleteTemplate(token, template.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-templates"] }),
+  });
   const meta = CATEGORY_META[template.category] ?? {
     label: template.category,
     icon: FileText,
@@ -110,9 +122,27 @@ function TemplateCard({
         <span className={`font-mono text-[9px] uppercase tracking-[0.15em] ${meta.iconColor}`}>
           {meta.label}
         </span>
-        <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40">
-          {template.is_active ? "Published" : "Draft"}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleMut.mutate(); }}
+            disabled={toggleMut.isPending}
+            title={template.is_active ? "Unpublish" : "Publish"}
+            className={`flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider transition-colors ${
+              template.is_active ? "text-emerald-400 hover:text-emerald-300" : "text-muted-foreground/50 hover:text-muted-foreground"
+            }`}
+          >
+            {template.is_active ? <ToggleRight className="size-3" /> : <ToggleLeft className="size-3" />}
+            {template.is_active ? "Live" : "Draft"}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${template.title}"?`)) deleteMut.mutate(); }}
+            disabled={deleteMut.isPending}
+            title="Delete"
+            className="text-muted-foreground/30 transition-colors hover:text-destructive"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        </div>
       </div>
     </button>
   );
@@ -227,7 +257,7 @@ function CreateTemplateModal({ token, onClose }: { token: string; onClose: () =>
         tags: tagsInput.split(",").map((t) => t.trim()).filter(Boolean),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["templates"] });
+      qc.invalidateQueries({ queryKey: ["admin-templates"] });
       onClose();
     },
   });
@@ -440,7 +470,7 @@ function CreateTemplateModal({ token, onClose }: { token: string; onClose: () =>
                 "Creating…"
               ) : (
                 <>
-                  <Sparkles className="size-4" />
+                  <Plus className="size-4" />
                   Create template
                 </>
               )}
@@ -465,8 +495,9 @@ export default function AdminTemplatesPage() {
   const [view, setView] = React.useState<"grid" | "list">("grid");
 
   const { data: templates = [], isLoading, isError, refetch } = useQuery({
-    queryKey: ["templates"],
-    queryFn: getTemplates,
+    queryKey: ["admin-templates", token],
+    queryFn: () => getAdminTemplates(token),
+    enabled: Boolean(token),
     staleTime: 60_000,
   });
 
@@ -486,12 +517,12 @@ export default function AdminTemplatesPage() {
     <div className="px-6 py-6 lg:px-8">
 
       {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Admin · Templates</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Prompt templates</h1>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Prompt Templates</h1>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            {templates.length} templates · {premiumCount} premium · {activeCount} published
+            {templates.length} total · {premiumCount} pro · {activeCount} published
           </p>
         </div>
         <button
@@ -502,6 +533,32 @@ export default function AdminTemplatesPage() {
           New template
         </button>
       </div>
+
+      {/* Category breakdown strip */}
+      {!isLoading && templates.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {Object.entries(CATEGORY_META).map(([cat, m]) => {
+            const count = templates.filter((t) => t.category === cat).length;
+            if (count === 0) return null;
+            const CatIcon = m.icon;
+            return (
+              <button
+                key={cat}
+                onClick={() => setCatFilter(catFilter === cat ? "all" : cat)}
+                className={`flex items-center gap-2 border px-3 py-2 transition-colors ${
+                  catFilter === cat
+                    ? "border-primary bg-primary/10"
+                    : "border-border bg-card hover:border-border/60 hover:bg-muted/20"
+                }`}
+              >
+                <CatIcon className={`size-3.5 ${catFilter === cat ? "text-primary" : m.iconColor}`} strokeWidth={1.5} />
+                <span className={`font-mono text-[10px] uppercase tracking-wider ${catFilter === cat ? "text-primary" : "text-muted-foreground"}`}>{m.label}</span>
+                <span className={`font-mono text-[11px] font-semibold ${catFilter === cat ? "text-primary" : "text-foreground"}`}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -611,7 +668,7 @@ export default function AdminTemplatesPage() {
         view === "grid" ? (
           <div className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((t) => (
-              <TemplateCard key={t.id} template={t} onClick={() => router.push(`/admin/dashboard/templates/${t.id}`)} />
+              <TemplateCard key={t.id} template={t} token={token} onClick={() => router.push(`/admin/dashboard/templates/${t.id}`)} />
             ))}
           </div>
         ) : (

@@ -38,7 +38,7 @@ export default function RootLayout({
           >
             <AuthModalProvider>
               <div className="flex min-h-screen flex-col">{children}</div>
-              <Toaster richColors />
+              <Toaster />
             </AuthModalProvider>
           </ThemeProvider>
         </QueryProvider>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, ChevronRight, Lock, Globe, Tag, Sparkles,
+  ArrowLeft, ChevronRight, Lock, Globe, Tag, Palette,
   Code2, GraduationCap, FileText, Megaphone, PenLine,
   Briefcase, Zap, Eye, EyeOff, Trash2, ToggleLeft, ToggleRight, XCircle,
 } from "lucide-react";
@@ -22,7 +22,7 @@ import { useAdminSession } from "@/lib/auth/admin-session";
 /* ── Category meta ───────────────────────────────────────────────── */
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; gradient: string; iconColor: string }> = {
-  design:      { label: "Design",      icon: Sparkles,      gradient: "from-violet-500/25 via-purple-500/10 to-transparent", iconColor: "text-violet-400" },
+  design:      { label: "Design",      icon: Palette,       gradient: "from-violet-500/25 via-purple-500/10 to-transparent", iconColor: "text-violet-400" },
   development: { label: "Development", icon: Code2,         gradient: "from-sky-500/25 via-blue-500/10 to-transparent",     iconColor: "text-sky-400" },
   student:     { label: "Student",     icon: GraduationCap, gradient: "from-emerald-500/25 via-teal-500/10 to-transparent",  iconColor: "text-emerald-400" },
   content:     { label: "Content",     icon: FileText,      gradient: "from-amber-500/25 via-orange-500/10 to-transparent",  iconColor: "text-amber-400" },

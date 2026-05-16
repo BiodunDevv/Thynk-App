@@ -7,7 +7,6 @@ export const siteNavigation = [
 
 export const signedInNavigation = [
   { label: "Workspace", href: "/" },
-  { label: "Saved", href: "/#saved-prompts" },
   { label: "Templates", href: "/templates" },
   { label: "Settings", href: "/settings" },
 ] as const;

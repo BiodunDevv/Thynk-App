@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check, ChevronRight, Package, Pencil, Plus,
-  Power, Sparkles, Trash2, X, Zap,
+  Power, CheckCircle2, Trash2, X, Zap,
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -468,7 +468,7 @@ export default function AdminPlansPage() {
         <div className="mb-6 grid grid-cols-1 gap-px border border-border bg-border sm:grid-cols-3">
           {[
             { label: "Total plans", value: plans.length, icon: Package, color: "text-sky-400" },
-            { label: "Active plans", value: activePlans.length, icon: Sparkles, color: "text-emerald-400" },
+            { label: "Active plans", value: activePlans.length, icon: CheckCircle2, color: "text-emerald-400" },
             { label: "Paid plans", value: totalRevenuePlans.length, icon: Zap, color: "text-primary" },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="flex items-center gap-3.5 bg-card px-5 py-4">

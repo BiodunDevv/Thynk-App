@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -15,12 +16,13 @@ import {
   MoonStar,
   Monitor,
   ChevronRight,
+  Heart,
 } from "lucide-react";
-import * as React from "react";
 import { useTheme } from "next-themes";
 
 import { useAuthModal } from "@/components/auth/auth-modal-provider";
 import { ThynkLogo } from "@/components/brand/thynk-logo";
+import { SavedPromptsPanel } from "@/components/workspace/saved-prompts-panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,55 +99,62 @@ function UsagePill({
 }) {
   const isFree = planSlug === "free";
   const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-  const isNearLimit = pct >= 80;
-  const isAtLimit = pct >= 100;
+  const remaining = Math.max(limit - used, 0);
+  const isNear = pct >= 80;
+  const isOut  = pct >= 100;
 
-  const r = 9;
+  /* SVG arc */
+  const r = 8;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
+
+  const accentClass = isOut ? "stroke-destructive" : isNear ? "stroke-orange-500" : "stroke-primary";
+  const textClass   = isOut ? "text-destructive"   : isNear ? "text-orange-500"   : "text-foreground";
+  const borderClass = isOut
+    ? "border-destructive/30 hover:border-destructive/60"
+    : isNear
+    ? "border-orange-500/30 hover:border-orange-500/60"
+    : "border-border hover:border-ring";
 
   return (
     <Link
       href="/pricing"
-      className="group hidden items-center gap-2.5 border border-border bg-card px-3 py-2 shadow-sm transition-colors hover:border-ring md:flex"
-      title={`${used} of ${limit} generations used`}
+      className={[
+        "group flex h-10 items-center gap-2.5 border bg-card px-3 shadow-sm transition-colors",
+        borderClass,
+      ].join(" ")}
+      title={`${remaining} of ${limit} generations remaining`}
     >
+      {/* Arc dial */}
       <span className="relative shrink-0">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" className="-rotate-90">
-          <circle cx="11" cy="11" r={r} strokeWidth="2.5" className="stroke-muted" />
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="-rotate-90">
+          <circle cx="10" cy="10" r={r} strokeWidth="2.2" className="stroke-muted" />
           <circle
-            cx="11" cy="11" r={r}
-            strokeWidth="2.5"
+            cx="10" cy="10" r={r}
+            strokeWidth="2.2"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ - dash}`}
-            className={
-              isAtLimit ? "stroke-destructive" : isNearLimit ? "stroke-orange-500" : "stroke-primary"
-            }
-            style={{ transition: "stroke-dasharray 0.4s ease" }}
+            className={accentClass}
+            style={{ transition: "stroke-dasharray 0.5s cubic-bezier(.4,0,.2,1)" }}
           />
         </svg>
-        <Zap
-          className={[
-            "absolute left-1/2 top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2",
-            isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-primary",
-          ].join(" ")}
-        />
+        <Zap className={["absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2", isOut ? "text-destructive" : isNear ? "text-orange-500" : "text-primary"].join(" ")} />
       </span>
+
+      {/* Numbers */}
       <span className="flex flex-col leading-none">
-        <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-          {isFree ? "Free" : "Pro"}
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+          {isFree ? "Free" : "Pro"}&nbsp;·&nbsp;gen
         </span>
-        <span
-          className={[
-            "font-mono text-[11px] font-semibold tabular-nums",
-            isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground",
-          ].join(" ")}
-        >
-          {used}<span className="font-normal text-muted-foreground">/{limit}</span>
+        <span className={["font-mono text-[11px] font-semibold tabular-nums", textClass].join(" ")}>
+          {remaining}
+          <span className="font-normal text-muted-foreground/50">/{limit}</span>
         </span>
       </span>
+
+      {/* Upgrade arrow — free only */}
       {isFree && (
-        <ArrowUpRight className="size-3 text-muted-foreground/50 transition-colors group-hover:text-primary" />
+        <ArrowUpRight className={["size-3 transition-colors", isOut || isNear ? "text-primary" : "text-muted-foreground/40 group-hover:text-primary"].join(" ")} />
       )}
     </Link>
   );
@@ -226,6 +235,7 @@ export function SiteHeader() {
   const adminSession = useAdminSession();
   const { openAuthModal } = useAuthModal();
   const router = useRouter();
+  const [savedOpen, setSavedOpen] = React.useState(false);
   const navigation = session ? signedInNavigation : siteNavigation;
 
   const accessToken = session?.tokens.access_token ?? "";
@@ -245,7 +255,9 @@ export function SiteHeader() {
   });
 
   const user = userQuery.data;
+  const sessionPlanId = session?.plan?.plan_id ?? null;
   const plan = plansQuery.data?.find((p) => p.id === user?.current_plan_id)
+    ?? plansQuery.data?.find((p) => p.id === sessionPlanId)
     ?? plansQuery.data?.find((p) => p.slug === "free");
 
   const used = user?.monthly_generation_count ?? 0;
@@ -299,7 +311,7 @@ export function SiteHeader() {
         {/* Right cluster */}
         <div className="flex items-center gap-2">
 
-          {/* Usage pill — regular user only */}
+          {/* Usage pill — always visible for authenticated users */}
           {session && !adminSession && user && plan && (
             <UsagePill used={used} limit={limit} planSlug={planSlug} />
           )}
@@ -311,6 +323,18 @@ export function SiteHeader() {
             <div className="border-r border-border">
               <InlineThemeToggle />
             </div>
+
+            {/* ── Saved prompts button — signed-in users only ── */}
+            {session && !adminSession && (
+              <button
+                onClick={() => setSavedOpen(true)}
+                title="Saved prompts"
+                className="flex h-full items-center gap-1.5 border-r border-border px-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <Heart className="size-3.5" />
+                <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] sm:inline">Saved</span>
+              </button>
+            )}
 
             {/* ── Admin logged in ── */}
             {adminSession ? (
@@ -339,45 +363,42 @@ export function SiteHeader() {
 
                   {user && plan && (
                     <div className="border-b border-border px-4 py-3">
+                      {/* Header row */}
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                          Generations
-                        </span>
-                        <span
-                          className={[
-                            "font-mono text-[11px] font-semibold tabular-nums",
-                            isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground",
-                          ].join(" ")}
-                        >
-                          {used}<span className="font-normal text-muted-foreground">/{limit}</span>
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="size-3 text-primary" />
+                          <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+                            Generations
+                          </span>
+                        </div>
+                        <span className={["font-mono text-[11px] font-semibold tabular-nums", isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground"].join(" ")}>
+                          {Math.max(limit - used, 0)}
+                          <span className="font-normal text-muted-foreground/50"> left</span>
                         </span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden bg-muted">
+
+                      {/* Progress bar */}
+                      <div className="h-1 w-full overflow-hidden bg-muted">
                         <div
-                          className={[
-                            "h-full transition-all duration-500",
-                            isAtLimit ? "bg-destructive" : isNearLimit ? "bg-orange-500" : "bg-primary",
-                          ].join(" ")}
+                          className={["h-full transition-all duration-500", isAtLimit ? "bg-destructive" : isNearLimit ? "bg-orange-500" : "bg-primary"].join(" ")}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span className="font-mono uppercase tracking-wider">
-                          {planSlug === "free" ? "Free plan" : planSlug === "pro-monthly" ? "Pro · monthly" : "Pro · yearly"}
+
+                      {/* Sub-row */}
+                      <div className="mt-1.5 flex items-center justify-between">
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                          {planSlug === "free" ? "Free · resets weekly" : planSlug.includes("monthly") ? "Pro · monthly" : "Pro · yearly"}
                         </span>
-                        {planSlug === "free" && (
-                          <span className="text-[11px] text-muted-foreground">resets daily</span>
-                        )}
+                        <span className="font-mono text-[9px] tabular-nums text-muted-foreground/50">
+                          {used}/{limit} used
+                        </span>
                       </div>
+
                       {planSlug === "free" && (
                         <Link
                           href="/pricing"
-                          className={[
-                            "mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90",
-                            isAtLimit || isNearLimit
-                              ? "bg-primary text-primary-foreground"
-                              : "border border-border bg-muted text-muted-foreground hover:text-foreground",
-                          ].join(" ")}
+                          className={["mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90", isAtLimit || isNearLimit ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-muted-foreground hover:text-foreground"].join(" ")}
                         >
                           <Zap className="size-3" />
                           {isAtLimit ? "Limit reached — Upgrade now" : "Upgrade to Pro"}
@@ -434,9 +455,13 @@ export function SiteHeader() {
               </>
             )}
           </div>
+
         </div>
 
       </div>
+
+      {/* Saved prompts slide-over */}
+      {savedOpen && <SavedPromptsPanel onClose={() => setSavedOpen(false)} />}
     </header>
   );
 }

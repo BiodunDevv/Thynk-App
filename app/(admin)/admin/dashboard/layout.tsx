@@ -17,6 +17,8 @@ import {
   Zap,
   ChevronRight,
   HeadphonesIcon,
+  Layers,
+  BarChart2,
 } from "lucide-react";
 
 import { ThynkLogo } from "@/components/brand/thynk-logo";
@@ -24,9 +26,11 @@ import { useAdminSession, clearAdminSession } from "@/lib/auth/admin-session";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/admin/dashboard/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/admin/dashboard/users", label: "Users", icon: Users },
   { href: "/admin/dashboard/support", label: "Support", icon: HeadphonesIcon },
   { href: "/admin/dashboard/chats", label: "Chats", icon: MessageSquare },
+  { href: "/admin/dashboard/prompts", label: "Prompts", icon: Layers },
   { href: "/admin/dashboard/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/dashboard/templates", label: "Templates", icon: FileText },
   { href: "/admin/dashboard/plans", label: "Plans", icon: Package },

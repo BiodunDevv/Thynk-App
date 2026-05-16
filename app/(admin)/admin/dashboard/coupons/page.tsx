@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Tag, Search, X, RefreshCw, Copy, Check,
   Percent, DollarSign, Calendar, Users, ToggleLeft,
-  ToggleRight, Sparkles, AlertCircle, ChevronRight,
+  ToggleRight, Wand2, AlertCircle, ChevronRight,
   Infinity, Clock,
 } from "lucide-react";
 
@@ -344,7 +344,7 @@ function CreateCouponModal({ token, onClose }: { token: string; onClose: () => v
                 onClick={suggestCode}
                 className="flex items-center gap-1.5 border border-border bg-background px-3 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground whitespace-nowrap"
               >
-                <Sparkles className="size-3.5" />
+                <Wand2 className="size-3.5" />
                 Generate
               </button>
             </div>

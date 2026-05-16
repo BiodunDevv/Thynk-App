@@ -6,6 +6,11 @@ export type SubscriptionRecord = {
   plan_id: string;
   status: string;
   provider: string;
+  provider_subscription_id: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  created_at: string | null;
 };
 
 export async function getMySubscription(accessToken: string) {

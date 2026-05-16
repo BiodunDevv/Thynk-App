@@ -64,7 +64,7 @@ export function getPlanDisplayName(plan: PlanRecord) {
 export function getPlanFeatures(plan: PlanRecord) {
   if (plan.slug === "free") {
     return [
-      `${plan.generation_limit} generations per day`,
+      `${plan.generation_limit} generations per week`,
       "Basic templates",
       "Limited saved prompts",
     ];

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { ReactNode } from "react";
 import { FeatureSection } from "@/components/marketing/feature-section";
 import { FaqSection } from "@/components/marketing/faq-section";
@@ -7,6 +8,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { TemplatesPreview } from "@/components/marketing/templates-preview";
 import { UseCasesSection } from "@/components/marketing/use-cases-section";
+import { AuthRedirectHandler } from "@/components/auth/auth-redirect-handler";
 
 const GRID_STYLE = {
   backgroundImage:
@@ -27,6 +29,7 @@ function SectionWrap({ children }: { children: ReactNode }) {
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
+      <Suspense fallback={null}><AuthRedirectHandler /></Suspense>
       <SiteHeader />
       <main>
         <HeroSection />

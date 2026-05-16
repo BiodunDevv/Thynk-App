@@ -83,6 +83,22 @@ export async function grantCredits(
   );
 }
 
+export async function grantPrompts(
+  token: string,
+  userId: string,
+  amount: number,
+  reason: string,
+) {
+  return apiDataRequest<{ user_id: string; prompts_granted: number; monthly_count: number }>(
+    `/admin/users/${userId}/grant-prompts`,
+    {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ amount, reason }),
+    },
+  );
+}
+
 /* ── Support tickets ──────────────────────────────────────────────── */
 
 export type SupportMessage = {
@@ -176,13 +192,25 @@ export async function addChatNote(token: string, chatId: string, note: string) {
 
 export type AdminPayment = {
   id: string;
-  user_id: string;
-  plan_id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  provider: string;
-  created_at: string;
+  user_id: string | null;
+  plan_id: string | null;
+  provider_reference: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: string | null;
+  provider: string | null;
+  created_at: string | null;
+  updated_at?: string | null;
+  plan_snapshot?: {
+    plan_id: string;
+    name: string | null;
+    slug: string | null;
+    billing_interval: string | null;
+    plan_currency: string | null;
+    plan_amount: number | null;
+    provider_currency: string | null;
+    provider_amount: number | null;
+  } | null;
 };
 
 export async function getAdminPayments(token: string): Promise<AdminPayment[]> {
@@ -393,6 +421,67 @@ export async function toggleAdminPlan(token: string, id: string): Promise<AdminP
 export async function deleteAdminPlan(token: string, id: string): Promise<void> {
   await apiRequest(`/admin/plans/${id}`, {
     method: "DELETE",
+    headers: authHeaders(token),
+  });
+}
+
+/* ── Prompts (admin) ──────────────────────────────────────────────── */
+
+export type AdminPrompt = {
+  id: string;
+  user_id: string;
+  title: string;
+  rough_input: string;
+  generated_prompt: string;
+  category: string;
+  tone?: string;
+  platform?: string;
+  complexity?: string;
+  output_format?: string;
+  image_urls?: string[];
+  created_at: string;
+};
+
+export async function getAdminPrompts(token: string): Promise<AdminPrompt[]> {
+  return apiDataRequest<AdminPrompt[]>("/admin/prompts", {
+    headers: authHeaders(token),
+  });
+}
+
+export async function getAdminUserChats(token: string, userId: string): Promise<import("@/lib/api/chats").RequestChatRecord[]> {
+  return apiDataRequest(`/admin/users/${userId}/chats`, {
+    headers: authHeaders(token),
+  });
+}
+
+/* ── Analytics ────────────────────────────────────────────────────── */
+
+export type AIUsageStat = {
+  date: string;
+  total_requests: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  avg_tokens_per_request: number;
+  failed_requests: number;
+};
+
+export type SystemAnalytics = {
+  ai_usage: AIUsageStat[];
+  total_tokens_all_time: number;
+  total_ai_requests_all_time: number;
+  avg_response_time_ms: number;
+  success_rate_pct: number;
+  top_categories: { category: string; count: number }[];
+  top_platforms: { platform: string; count: number }[];
+  daily_new_users: { date: string; count: number }[];
+  daily_generations: { date: string; count: number }[];
+  revenue_by_day: { date: string; amount: number; currency: string }[];
+  plan_distribution: { plan: string; count: number }[];
+};
+
+export async function getSystemAnalytics(token: string, days = 30): Promise<SystemAnalytics> {
+  return apiDataRequest<SystemAnalytics>(`/admin/analytics?days=${days}`, {
     headers: authHeaders(token),
   });
 }

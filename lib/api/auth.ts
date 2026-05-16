@@ -7,12 +7,36 @@ export type AuthTokens = {
   token_type: string;
 };
 
+export type AuthPlanData = {
+  plan_id: string | null;
+  name?: string;
+  slug?: string;
+  price?: number;
+  currency?: string;
+  billing_interval?: string;
+  generation_limit?: number;
+  can_use_premium_templates?: boolean;
+  can_save_unlimited_prompts?: boolean;
+  priority_generation?: boolean;
+};
+
+export type AuthSubscriptionData = {
+  id?: string;
+  plan_id?: string;
+  status?: string;
+  provider?: string;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  cancel_at_period_end?: boolean;
+};
+
 export type AuthSessionPayload = {
   tokens: AuthTokens;
   user: UserRecord;
   role: string;
-  plan: Record<string, unknown>;
+  plan: AuthPlanData;
   subscription_status: string;
+  subscription?: AuthSubscriptionData;
 };
 
 export type RegisterPayload = {
@@ -89,4 +113,3 @@ export async function resendVerificationCode(payload: EmailPayload) {
     body: JSON.stringify(payload),
   });
 }
-

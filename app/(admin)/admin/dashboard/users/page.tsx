@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAdminUsers, grantCredits, type AdminUser } from "@/lib/api/admin";
+import { getAdminUsers, grantCredits, grantPrompts, type AdminUser } from "@/lib/api/admin";
 import { useAdminSession } from "@/lib/auth/admin-session";
 
 /* ── helpers ─────────────────────────────────────────────────────── */
@@ -226,10 +226,136 @@ function GrantCreditsModal({
   );
 }
 
+/* ── grant prompts modal ─────────────────────────────────────────── */
+
+function GrantPromptsModal({
+  user,
+  token,
+  onClose,
+}: {
+  user: AdminUser;
+  token: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [amount, setAmount] = React.useState("10");
+  const [reason, setReason] = React.useState("");
+  const [success, setSuccess] = React.useState(false);
+
+  const mutation = useMutation({
+    mutationFn: () => grantPrompts(token, user.id, parseInt(amount), reason),
+    onSuccess: () => {
+      setSuccess(true);
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      setTimeout(onClose, 1800);
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm border border-border bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div>
+            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Grant prompts</p>
+            <h3 className="mt-0.5 text-[15px] font-semibold text-foreground">
+              {user.full_name ?? user.email.split("@")[0]}
+            </h3>
+          </div>
+          <button onClick={onClose} className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-5">
+          {success ? (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="flex size-12 items-center justify-center bg-primary/10">
+                <Zap className="size-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold text-foreground">Prompts granted</p>
+                <p className="mt-0.5 text-[12px] text-muted-foreground">{amount} generations added to {user.email}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Quick amounts
+                </label>
+                <div className="flex gap-1.5">
+                  {["5", "10", "25", "50", "100"].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setAmount(n)}
+                      className={`flex-1 border py-1.5 font-mono text-[11px] transition-colors ${
+                        amount === n
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-border/80 hover:text-foreground"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
+                  Custom amount
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full border border-border bg-background px-3 py-2.5 text-[14px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
+                  Reason
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Loyalty reward"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full border border-border bg-background px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              {mutation.isError && (
+                <p className="border border-destructive/20 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+                  {(mutation.error as { message?: string })?.message ?? "Failed to grant prompts."}
+                </p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={onClose}
+                  className="flex-1 border border-border bg-background px-4 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => mutation.mutate()}
+                  disabled={mutation.isPending || !reason.trim() || !amount || Number(amount) < 1}
+                  className="flex-1 bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                >
+                  {mutation.isPending ? "Granting…" : `Grant ${amount} prompts`}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── user detail drawer ──────────────────────────────────────────── */
 
 function UserDrawer({ user, token, onClose }: { user: AdminUser; token: string; onClose: () => void }) {
   const [showGrant, setShowGrant] = React.useState(false);
+  const [showGrantPrompts, setShowGrantPrompts] = React.useState(false);
 
   return (
     <>
@@ -291,10 +417,17 @@ function UserDrawer({ user, token, onClose }: { user: AdminUser; token: string; 
           {/* Actions */}
           <div className="border-t border-border p-5 space-y-2">
             <button
-              onClick={() => setShowGrant(true)}
+              onClick={() => setShowGrantPrompts(true)}
               className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
             >
               <Zap className="size-4" />
+              Grant prompts
+            </button>
+            <button
+              onClick={() => setShowGrant(true)}
+              className="flex w-full items-center justify-center gap-2 border border-border bg-background px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <CreditCard className="size-4" />
               Grant credits
             </button>
           </div>
@@ -303,6 +436,9 @@ function UserDrawer({ user, token, onClose }: { user: AdminUser; token: string; 
 
       {showGrant && (
         <GrantCreditsModal user={user} token={token} onClose={() => setShowGrant(false)} />
+      )}
+      {showGrantPrompts && (
+        <GrantPromptsModal user={user} token={token} onClose={() => setShowGrantPrompts(false)} />
       )}
     </>
   );

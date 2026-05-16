@@ -21,7 +21,7 @@ export function UserHome() {
   const accessToken = session?.tokens.access_token ?? "";
 
   const userQuery = useQuery({
-    queryKey: ["user", "me"],
+    queryKey: ["user", "me", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken),
   });
@@ -33,7 +33,7 @@ export function UserHome() {
   });
 
   const subscriptionQuery = useQuery({
-    queryKey: ["subscription", "me"],
+    queryKey: ["subscription", "me", accessToken],
     queryFn: () => getMySubscription(accessToken),
     enabled: Boolean(accessToken),
   });
@@ -92,4 +92,3 @@ export function UserHome() {
     </SectionContainer>
   );
 }
-

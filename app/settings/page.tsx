@@ -2,26 +2,36 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Bell, CreditCard, ShieldCheck, UserRound } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Bell, CreditCard, ShieldCheck, UserRound,
+  Check, Zap, ArrowRight, CheckCircle2, Clock,
+  XCircle, Loader2, RefreshCw, Calendar, Receipt,
+  AlertCircle,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SectionContainer } from "@/components/shared/section-container";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getNotifications, registerNotificationToken, removeNotificationToken } from "@/lib/api/notifications";
 import {
-  getPaymentProviderConfig,
+  getNotifications,
+  getNotificationSummary,
+  markAllNotificationsRead,
+  markNotificationRead,
+  registerNotificationToken,
+  removeNotificationToken,
+  sendTestNotification,
+} from "@/lib/api/notifications";
+import {
   initializePayment,
+  verifyPayment,
+  getMyPayments,
   type PaymentProvider,
 } from "@/lib/api/payments";
+import { refreshSession } from "@/lib/api/client";
 import { getPlans } from "@/lib/api/plans";
 import { getMySubscription } from "@/lib/api/subscriptions";
 import { getCurrentUser } from "@/lib/api/users";
@@ -32,39 +42,368 @@ import {
   formatPlanProviderPrice,
   getPlanCadence,
   getPlanDisplayName,
+  getPlanFeatures,
+  getPlanBadge,
 } from "@/lib/constants/pricing";
 
-function getBrowserNotificationToken(userId: string) {
-  if (typeof window === "undefined") {
-    return "";
-  }
+/* ─── helpers ────────────────────────────────────────────────────── */
 
+function getBrowserNotificationToken(userId: string) {
+  if (typeof window === "undefined") return "";
   return `web:${userId}:${window.location.origin}`;
 }
 
+function fmtDate(d: string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
+  if (!d) return "—";
+  const parsed = new Date(d);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-US", opts ?? { month: "short", day: "numeric", year: "numeric" });
+}
+
+function fmtDateTime(d: string | null | undefined) {
+  if (!d) return "—";
+  const parsed = new Date(d);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function fmtAmount(amount: number, currency: string) {
+  const sym = currency.toUpperCase() === "NGN" ? "₦" : "$";
+  return `${sym}${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+}
+
+function daysUntil(d: string | null | undefined): number | null {
+  if (!d) return null;
+  const diff = new Date(d).getTime() - Date.now();
+  if (diff < 0) return null;
+  return Math.ceil(diff / 86_400_000);
+}
+
+/* ─── Payment status badge ───────────────────────────────────────── */
+function PayStatusBadge({ status }: { status: string }) {
+  const cfg: Record<string, { icon: React.ElementType; cls: string; label: string }> = {
+    success:   { icon: CheckCircle2, cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", label: "Paid" },
+    pending:   { icon: Clock,        cls: "bg-amber-500/10 text-amber-400 border-amber-500/20",       label: "Pending" },
+    failed:    { icon: XCircle,      cls: "bg-destructive/10 text-destructive border-destructive/20",  label: "Failed" },
+    cancelled: { icon: XCircle,      cls: "bg-muted text-muted-foreground border-border",              label: "Cancelled" },
+  };
+  const c = cfg[status] ?? cfg.pending;
+  const Icon = c.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${c.cls}`}>
+      <Icon className="size-2.5" />
+      {c.label}
+    </span>
+  );
+}
+
+/* ─── payment return / auto-verify banner ────────────────────────── */
+
+function PaymentReturnBanner({ accessToken }: { accessToken: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+
+  /* Paystack returns ?trxref=&reference= — both hold the same reference */
+  const trxref = searchParams.get("trxref");
+  const reference = searchParams.get("reference") ?? trxref;
+  const paymentParam = searchParams.get("payment");
+
+  const [status, setStatus] = React.useState<"verifying" | "success" | "failed" | null>(
+    reference ? "verifying" : paymentParam === "return" ? "verifying" : null,
+  );
+  const [alreadyVerified, setAlreadyVerified] = React.useState(false);
+
+  function isPaymentConfirmed(res: Awaited<ReturnType<typeof verifyPayment>>) {
+    const paymentSuccess = res.payment?.status === "success";
+    const billingGranted = res.billing_state?.granted === true;
+    const subscriptionActive = res.subscription?.status === "active";
+    return paymentSuccess && (billingGranted || subscriptionActive || Boolean(res.already_verified));
+  }
+
+  function dismiss() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("payment");
+    params.delete("trxref");
+    params.delete("reference");
+    params.set("tab", "billing");
+    router.replace(`/settings?${params.toString()}`);
+  }
+
+  React.useEffect(() => {
+    if (!reference || !accessToken) return;
+
+    let cancelled = false;
+    async function run() {
+      try {
+        const res = await verifyPayment(accessToken, reference!);
+        if (cancelled) return;
+        if (isPaymentConfirmed(res)) {
+          setAlreadyVerified(Boolean(res.already_verified));
+          setStatus("success");
+          // Refresh JWT session so plan/subscription_status update in the navbar and all UI
+          await refreshSession();
+          queryClient.invalidateQueries({ queryKey: ["subscription", "me", accessToken] });
+          queryClient.invalidateQueries({ queryKey: ["user", "me", accessToken] });
+          queryClient.invalidateQueries({ queryKey: ["plans"] });
+          queryClient.invalidateQueries({ queryKey: ["my-payments", accessToken] });
+          toast.success(
+            res.already_verified
+              ? "Payment already confirmed — your plan is active."
+              : "Payment confirmed — your plan has been upgraded!",
+          );
+        } else {
+          setStatus("failed");
+        }
+      } catch {
+        if (!cancelled) setStatus("failed");
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reference, accessToken]);
+
+  if (!status) return null;
+
+  const cfg = {
+    verifying: {
+      icon: <Loader2 className="size-4 shrink-0 animate-spin text-amber-400" />,
+      title: "Verifying payment…",
+      body: "Checking your payment with the provider. This takes a moment.",
+      border: "border-amber-500/20 bg-amber-500/5",
+      titleColor: "text-amber-400",
+    },
+    success: {
+      icon: <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />,
+      title: alreadyVerified ? "Payment already confirmed" : "Payment confirmed",
+      body: alreadyVerified
+        ? "This payment was already verified earlier. Your subscription is active and your billing state is up to date."
+        : "Your plan has been upgraded and your generation limit is now active. Welcome to the next level.",
+      border: "border-emerald-500/20 bg-emerald-500/5",
+      titleColor: "text-emerald-400",
+    },
+    failed: {
+      icon: <XCircle className="size-4 shrink-0 text-destructive" />,
+      title: "Payment not completed",
+      body: "We couldn't confirm your payment. You have not been charged. You can try again below.",
+      border: "border-destructive/20 bg-destructive/5",
+      titleColor: "text-destructive",
+    },
+  }[status];
+
+  return (
+    <div className={`flex items-start gap-3 border px-4 py-4 ${cfg.border}`}>
+      {cfg.icon}
+      <div className="flex-1 min-w-0">
+        <p className={`text-[13px] font-semibold ${cfg.titleColor}`}>{cfg.title}</p>
+        <p className="mt-0.5 text-[12px] text-muted-foreground">{cfg.body}</p>
+        {status === "success" && (
+          <button
+            onClick={dismiss}
+            className="mt-2 font-mono text-[10px] uppercase tracking-wider text-emerald-400/70 hover:text-emerald-400 transition-colors"
+          >
+            Dismiss →
+          </button>
+        )}
+      </div>
+      {status !== "verifying" && status !== "success" && (
+        <button
+          onClick={dismiss}
+          className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
+          Dismiss
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ─── Plan card ──────────────────────────────────────────────────── */
+import type { PlanRecord } from "@/lib/api/plans";
+
+function PlanCard({
+  plan,
+  isCurrent,
+  accessToken,
+}: {
+  plan: PlanRecord;
+  isCurrent: boolean;
+  accessToken: string;
+}) {
+  const [provider, setProvider] = React.useState<PaymentProvider>("paystack");
+  const badge = getPlanBadge(plan);
+  const features = getPlanFeatures(plan);
+  const isFree = plan.billing_interval === "free";
+
+  const payMut = useMutation({
+    mutationFn: () =>
+      initializePayment(accessToken, {
+        plan_id: plan.id,
+        provider,
+        callback_url: `${window.location.origin}/settings?tab=billing&payment=return`,
+      }),
+    onMutate: () => toast.loading("Preparing checkout…", { id: `pay-${plan.id}` }),
+    onSuccess: (res) => {
+      clearPendingCheckout();
+      const url = res.authorization?.authorization_url;
+      if (url) {
+        toast.success("Redirecting…", { id: `pay-${plan.id}` });
+        window.location.href = url;
+      } else {
+        toast.error("No checkout URL received. Try again.", { id: `pay-${plan.id}` });
+      }
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Checkout failed.";
+      toast.error(msg, { id: `pay-${plan.id}` });
+    },
+  });
+
+  return (
+    <div className={[
+      "flex flex-col border bg-card transition-colors",
+      isCurrent ? "border-primary/40" : "border-border hover:border-border/80",
+    ].join(" ")}>
+      {/* Header */}
+      <div className="relative border-b border-border px-5 py-4">
+        {badge && (
+          <span className="absolute right-0 top-0 bg-primary px-2.5 py-1 font-mono text-[8px] font-bold uppercase tracking-[0.15em] text-primary-foreground">
+            {badge}
+          </span>
+        )}
+        {isCurrent && (
+          <span className="absolute left-0 top-0 bg-primary/10 border-r border-b border-primary/20 px-2.5 py-1 font-mono text-[8px] uppercase tracking-wider text-primary">
+            Current plan
+          </span>
+        )}
+        <div className={isCurrent || badge ? "mt-5" : ""}>
+          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+            {getPlanDisplayName(plan)}
+          </p>
+          <div className="mt-1.5 flex items-end gap-1">
+            <span className="text-[1.75rem] font-semibold leading-none tracking-tight text-foreground">
+              {formatPlanPrice(plan)}
+            </span>
+            <span className="mb-0.5 text-[11px] text-muted-foreground">{getPlanCadence(plan)}</span>
+          </div>
+        </div>
+        <div className="mt-2 flex items-center gap-1.5">
+          <Zap className="size-3 text-primary" />
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {plan.generation_limit >= 30000
+              ? "30,000 generations / year"
+              : plan.generation_limit === 5
+              ? "5 generations / week"
+              : `${plan.generation_limit.toLocaleString()} generations / month`}
+          </span>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="flex-1 px-5 py-4">
+        <ul className="space-y-2">
+          {features.map((f) => (
+            <li key={f} className="flex items-start gap-2 text-[12px] text-muted-foreground">
+              <span className="mt-0.5 flex size-3.5 shrink-0 items-center justify-center bg-primary/10 text-primary">
+                <Check className="size-2" />
+              </span>
+              {f}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* CTA */}
+      <div className="border-t border-border px-5 py-4 space-y-3">
+        {isFree ? (
+          <div className="flex items-center justify-center gap-2 border border-border bg-muted/30 py-2.5 text-[12px] text-muted-foreground">
+            <CheckCircle2 className="size-3.5" />
+            {isCurrent ? "Your current plan" : "Free — no payment needed"}
+          </div>
+        ) : (
+          <>
+            {/* Provider toggle */}
+            <div className="grid grid-cols-2 gap-1.5">
+              {(["paystack", "stripe"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setProvider(p)}
+                  className={[
+                    "flex items-center justify-center gap-1.5 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors",
+                    provider === p
+                      ? "border-primary/40 bg-primary/10 text-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted",
+                  ].join(" ")}
+                >
+                  <CreditCard className="size-3" />
+                  {p === "paystack"
+                    ? `Paystack ${formatPlanProviderPrice(plan, "paystack")}`
+                    : `Stripe ${formatPlanProviderPrice(plan, "stripe")}`}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => payMut.mutate()}
+              disabled={payMut.isPending || isCurrent}
+              className={[
+                "flex w-full items-center justify-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-opacity",
+                isCurrent
+                  ? "border border-border bg-background text-muted-foreground cursor-default"
+                  : "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60",
+              ].join(" ")}
+            >
+              {payMut.isPending ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Preparing…
+                </>
+              ) : isCurrent ? (
+                "Active plan"
+              ) : (
+                <>
+                  Pay with {provider === "paystack" ? "Paystack" : "Stripe"}
+                  <ArrowRight className="size-3.5" />
+                </>
+              )}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Tab nav ─────────────────────────────────────────────────────── */
+const TABS = [
+  { id: "account", label: "Account", icon: UserRound },
+  { id: "billing", label: "Billing", icon: CreditCard },
+  { id: "notifications", label: "Notifications", icon: Bell },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
+/* ─── Main page ───────────────────────────────────────────────────── */
 export default function SettingsPage() {
   const session = useAuthSession();
   const accessToken = session?.tokens.access_token ?? "";
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") ?? "account";
-  const paymentState = searchParams.get("payment");
-  const selectedPlanSlug = searchParams.get("plan");
-  const selectedProviderFromUrl = searchParams.get("provider");
-  const provider: PaymentProvider =
-    selectedProviderFromUrl === "stripe" ? "stripe" : "paystack";
-  const [notificationPermission, setNotificationPermission] = React.useState<
-    NotificationPermission | "unsupported"
-  >(() => {
-    if (typeof window === "undefined") {
-      return "default";
-    }
 
-    if (!("Notification" in window)) {
-      return "unsupported";
-    }
+  const activeTab = (searchParams.get("tab") ?? "account") as TabId;
+  const [periodNowMs, setPeriodNowMs] = React.useState(() => Date.now());
 
-    return window.Notification.permission;
-  });
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setPeriodNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  /* queries */
   const userQuery = useQuery({
     queryKey: ["user", "me", accessToken],
     queryFn: () => getCurrentUser(accessToken),
@@ -83,130 +422,133 @@ export default function SettingsPage() {
     enabled: Boolean(accessToken),
   });
 
-  const paymentProviderConfigQuery = useQuery({
-    queryKey: ["payments", "providers", "config", accessToken],
-    queryFn: () => getPaymentProviderConfig(accessToken),
-    enabled: Boolean(accessToken),
-  });
-
   const notificationsQuery = useQuery({
     queryKey: ["notifications", accessToken],
     queryFn: () => getNotifications(accessToken),
-    enabled: Boolean(accessToken),
+    enabled: Boolean(accessToken) && activeTab === "notifications",
+    refetchInterval: activeTab === "notifications" ? 30_000 : false,
   });
 
-  const paymentMutation = useMutation({
-    mutationFn: async (payload: { planId: string; provider: PaymentProvider }) => {
-      const callbackUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/settings?tab=billing&payment=return`
-          : undefined;
-
-      return initializePayment(accessToken, {
-        plan_id: payload.planId,
-        provider: payload.provider,
-        callback_url: callbackUrl,
-      });
-    },
-    onSuccess: (result) => {
-      clearPendingCheckout();
-
-      if (result.authorization.authorization_url) {
-        window.location.href = result.authorization.authorization_url;
-      }
-    },
+  const notificationSummaryQuery = useQuery({
+    queryKey: ["notifications-summary", accessToken],
+    queryFn: () => getNotificationSummary(accessToken),
+    enabled: Boolean(accessToken) && activeTab === "notifications",
+    refetchInterval: activeTab === "notifications" ? 30_000 : false,
   });
 
-  const registerNotificationsMutation = useMutation({
+  const paymentsQuery = useQuery({
+    queryKey: ["my-payments", accessToken],
+    queryFn: () => getMyPayments(accessToken),
+    enabled: Boolean(accessToken) && activeTab === "billing",
+    staleTime: 30_000,
+  });
+
+  const [notifPermission, setNotifPermission] = React.useState<NotificationPermission | "unsupported">(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+    return window.Notification.permission;
+  });
+
+  const registerNotifMut = useMutation({
     mutationFn: async () => {
       const user = userQuery.data;
-      if (!user) {
-        throw new Error("User profile is unavailable.");
-      }
-
-      if (typeof window === "undefined" || !("Notification" in window)) {
-        throw new Error("Browser notifications are not available here.");
-      }
-
-      const permission = await window.Notification.requestPermission();
-      setNotificationPermission(permission);
-
-      if (permission !== "granted") {
-        throw new Error("Notification permission was not granted.");
-      }
-
+      if (!user) throw new Error("User profile unavailable.");
+      if (!("Notification" in window)) throw new Error("Notifications not supported.");
+      const perm = await window.Notification.requestPermission();
+      setNotifPermission(perm);
+      if (perm !== "granted") throw new Error("Permission not granted.");
       await registerNotificationToken(accessToken, getBrowserNotificationToken(user.id));
-
       new window.Notification("Thynk notifications enabled", {
-        body: "You’ll now receive prompt and billing updates on this browser.",
+        body: "You'll receive prompt and billing updates on this browser.",
       });
     },
     onSuccess: () => {
+      toast.success("Notifications enabled");
       notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to enable notifications"),
   });
 
-  const removeNotificationsMutation = useMutation({
+  const removeNotifMut = useMutation({
     mutationFn: async () => {
       const user = userQuery.data;
-      if (!user) {
-        throw new Error("User profile is unavailable.");
-      }
-
+      if (!user) throw new Error("User profile unavailable.");
       await removeNotificationToken(accessToken, getBrowserNotificationToken(user.id));
-      setNotificationPermission(
-        typeof window !== "undefined" && "Notification" in window
-          ? window.Notification.permission
-          : "unsupported",
-      );
     },
     onSuccess: () => {
+      toast.success("Notifications disabled on this browser");
       notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
     },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to remove notifications"),
+  });
+
+  const testNotifMut = useMutation({
+    mutationFn: async () => {
+      const notification = await sendTestNotification(accessToken);
+      if ("Notification" in window && window.Notification.permission === "granted") {
+        new window.Notification(notification.title, { body: notification.body });
+      }
+      return notification;
+    },
+    onSuccess: () => {
+      toast.success("Test notification sent");
+      notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to send test notification"),
+  });
+
+  const markAllNotifMut = useMutation({
+    mutationFn: () => markAllNotificationsRead(accessToken),
+    onSuccess: (result) => {
+      toast.success(result.marked_count > 0 ? "All notifications marked as read" : "No unread notifications");
+      notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update notifications"),
+  });
+
+  const markNotifReadMut = useMutation({
+    mutationFn: (notificationId: string) => markNotificationRead(accessToken, notificationId),
+    onSuccess: () => {
+      notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update notification"),
   });
 
   const user = userQuery.data ?? session?.user ?? null;
   const plans = plansQuery.data ?? [];
   const subscription = subscriptionQuery.data ?? null;
+  const resolvedSubscriptionStatus = subscription?.status ?? user?.subscription_status ?? "free";
+
   const currentPlan =
-    plans.find((plan) => plan.id === subscription?.plan_id) ??
-    plans.find((plan) => plan.id === user?.current_plan_id) ??
-    plans.find((plan) => plan.slug === "free") ??
+    plans.find((p) => p.id === subscription?.plan_id) ??
+    plans.find((p) => p.id === user?.current_plan_id) ??
+    plans.find((p) => p.id === session?.plan?.plan_id) ??
+    plans.find((p) => p.slug === "free") ??
     null;
-  const checkoutPlan =
-    plans.find((plan) => plan.slug === selectedPlanSlug) ??
-    currentPlan;
-  const paymentProviderConfig = paymentProviderConfigQuery.data ?? null;
-  const selectedProviderConfig = paymentProviderConfig?.providers[provider] ?? null;
-  const billingReturnMessage =
-    paymentState === "return"
-      ? "Your checkout was opened successfully. If you completed payment, your plan will update as soon as the provider confirms it."
-      : null;
 
-  const settingsTabs = [
-    { id: "account", label: "Account", icon: UserRound },
-    { id: "billing", label: "Billing", icon: CreditCard },
-    { id: "notifications", label: "Notifications", icon: Bell },
-  ] as const;
-
+  /* Unauthenticated */
   if (!session) {
     return (
       <div className="min-h-screen bg-background">
         <SiteHeader />
-        <SectionContainer className="py-10">
-          <Card className="border border-border bg-card">
-            <CardHeader>
-              <CardTitle>Sign in required</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Sign in to manage your Thynk account, billing, and notifications.
-              </p>
-              <Button asChild>
-                <Link href="/sign-in">Go to sign in</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <SectionContainer className="py-16">
+          <div className="mx-auto max-w-md border border-border bg-card px-8 py-10 text-center">
+            <ShieldCheck className="mx-auto size-8 text-muted-foreground/30" />
+            <p className="mt-4 text-[15px] font-medium text-foreground">Sign in required</p>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              Sign in to manage your account, billing and notifications.
+            </p>
+            <Link
+              href="/?auth=sign-in"
+              className="mt-6 inline-flex items-center gap-2 bg-primary px-5 py-2.5 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              Sign in <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
         </SectionContainer>
         <SiteFooter />
       </div>
@@ -216,429 +558,507 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-background">
       <SiteHeader />
-      <SectionContainer className="space-y-6 py-8">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">Settings</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Manage your Thynk workspace
+
+      <SectionContainer className="py-8">
+        {/* Page title */}
+        <div className="mb-6">
+          <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Settings</p>
+          <h1 className="mt-1 text-[22px] font-semibold tracking-tight text-foreground">
+            Manage your workspace
           </h1>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <Card className="border border-border bg-card">
-            <CardContent className="space-y-2 p-3">
-              {settingsTabs.map(({ id, label, icon: Icon }) => (
-                <Button
-                  asChild
-                  key={id}
-                  variant={activeTab === id ? "secondary" : "ghost"}
-                  className="w-full justify-start"
-                >
-                  <Link href={`/settings?tab=${id}`}>
-                    <Icon className="size-4" />
-                    {label}
-                  </Link>
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
+        <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)]">
+          {/* Sidebar */}
+          <nav className="flex flex-row gap-1 lg:flex-col border border-border bg-card p-2 h-fit">
+            {TABS.map(({ id, label, icon: Icon }) => (
+              <Link
+                key={id}
+                href={`/settings?tab=${id}`}
+                className={[
+                  "flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-medium transition-colors",
+                  activeTab === id
+                    ? "bg-primary/10 text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ].join(" ")}
+              >
+                <Icon className="size-3.5 shrink-0" />
+                {label}
+              </Link>
+            ))}
+          </nav>
 
-          <div className="space-y-6">
-            {(activeTab === "account" || activeTab === "billing" || activeTab === "notifications") &&
-            userQuery.isLoading ? (
-              <Card className="border border-border bg-card">
-                <CardContent className="space-y-3 p-6">
-                  <Skeleton className="h-6 w-40" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </CardContent>
-              </Card>
-            ) : null}
+          {/* Content */}
+          <div className="space-y-5">
 
-            {activeTab === "account" ? (
-              <Card className="border border-border bg-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg tracking-tight">
-                    <ShieldCheck className="size-4" />
+            {/* ── Account tab ── */}
+            {activeTab === "account" && (
+              <div className="border border-border bg-card">
+                <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+                  <ShieldCheck className="size-3.5 text-muted-foreground" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                     Account overview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Full name
-                      </p>
-                      <p className="mt-2 text-sm text-foreground">
-                        {user?.full_name ?? "Not available"}
-                      </p>
+                  </span>
+                </div>
+                <div className="p-5">
+                  {userQuery.isLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-4 w-full" />)}
                     </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Email
-                      </p>
-                      <p className="mt-2 text-sm text-foreground">{user?.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Verification
-                      </p>
-                      <div className="mt-2">
-                        <Badge variant="secondary">
-                          {user?.is_verified ? "Verified" : "Verification pending"}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Subscription status
-                      </p>
-                      <div className="mt-2">
-                        <Badge variant="outline">
-                          {user?.subscription_status ?? "Free"}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {activeTab === "billing" ? (
-              <div className="space-y-6">
-                {billingReturnMessage ? (
-                  <Alert className="border-border bg-muted">
-                    <AlertDescription>{billingReturnMessage}</AlertDescription>
-                  </Alert>
-                ) : null}
-
-                <Card className="border border-border bg-card">
-                  <CardHeader>
-                    <CardTitle className="text-lg tracking-tight">
-                      Billing and plan
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">
-                        Current plan:{" "}
-                        {currentPlan ? getPlanDisplayName(currentPlan) : "Free"}
-                      </Badge>
-                      {subscription?.provider ? (
-                        <Badge variant="outline">
-                          Provider: {subscription.provider}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Choose the plan you want, then pick your preferred checkout
-                      provider. Stripe charges in USD. Paystack charges in naira.
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-border bg-card">
-                  <CardHeader>
-                    <CardTitle className="text-lg tracking-tight">
-                      Payment integration setup
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {paymentProviderConfigQuery.isLoading ? (
-                      <div className="space-y-3">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-16 w-full" />
-                      </div>
-                    ) : paymentProviderConfigQuery.isError || !selectedProviderConfig ? (
-                      <Alert className="border-border bg-muted">
-                        <AlertDescription>
-                          We couldn&apos;t load your payment integration details right now.
-                        </AlertDescription>
-                      </Alert>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">{selectedProviderConfig.name}</Badge>
-                          <Badge variant="outline">
-                            Header: {selectedProviderConfig.signature_header}
-                          </Badge>
-                          <Badge
-                            variant={
-                              selectedProviderConfig.webhook_secret_required
-                                ? "outline"
-                                : "secondary"
-                            }
-                          >
-                            {selectedProviderConfig.webhook_secret_required
-                              ? "Separate webhook secret required"
-                              : "No separate webhook secret"}
-                          </Badge>
+                  ) : (
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      {[
+                        { label: "Full name", value: user?.full_name ?? "—" },
+                        { label: "Email address", value: user?.email ?? "—" },
+                        {
+                          label: "Verification",
+                          value: user?.is_verified ? "Verified" : "Pending verification",
+                          accent: user?.is_verified ? "text-emerald-400" : "text-amber-400",
+                        },
+                        {
+                          label: "Subscription status",
+                          value: resolvedSubscriptionStatus,
+                        },
+                        {
+                          label: "Current plan",
+                          value: currentPlan ? getPlanDisplayName(currentPlan) : "Free",
+                        },
+                      ].map((item) => (
+                        <div key={item.label}>
+                          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                            {item.label}
+                          </p>
+                          <p className={`mt-1.5 text-[13px] font-medium ${item.accent ?? "text-foreground"}`}>
+                            {item.value}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedProviderConfig.instructions}
-                        </p>
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <div className="space-y-2">
-                            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                              Callback URL
-                            </p>
-                            <Input readOnly value={selectedProviderConfig.callback_url} />
-                            <p className="text-xs text-muted-foreground">
-                              Use this as the return URL after checkout.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                              Webhook URL
-                            </p>
-                            <Input readOnly value={selectedProviderConfig.webhook_url} />
-                            <p className="text-xs text-muted-foreground">
-                              Paste this into your {selectedProviderConfig.name} dashboard.
-                            </p>
-                          </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Billing tab ── */}
+            {activeTab === "billing" && (
+              <div className="space-y-5">
+                {/* Payment return banner — auto-verifies via trxref/reference */}
+                <PaymentReturnBanner accessToken={accessToken} />
+
+                {/* Current plan summary */}
+                {currentPlan && (
+                  <div className="border border-border bg-card">
+                    <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="size-3.5 text-muted-foreground" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                          Active plan
+                        </span>
+                      </div>
+                      {subscription?.provider && (
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50 border border-border px-2 py-0.5">
+                          via {subscription.provider}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-x-8 gap-y-4 px-5 py-5">
+                      {[
+                        {
+                          label: "Plan",
+                          value: getPlanDisplayName(currentPlan),
+                          sub: null,
+                        },
+                        {
+                          label: "Price",
+                          value: formatPlanPrice(currentPlan),
+                          sub: getPlanCadence(currentPlan),
+                        },
+                        {
+                          label: "Generations",
+                          value: currentPlan.generation_limit >= 30000
+                            ? "30,000 / yr"
+                            : currentPlan.generation_limit === 5
+                            ? "5 / week"
+                            : `${currentPlan.generation_limit.toLocaleString()} / mo`,
+                          sub: null,
+                          icon: <Zap className="size-3 text-primary" />,
+                        },
+                        {
+                          label: "Status",
+                          value: resolvedSubscriptionStatus,
+                          accent: resolvedSubscriptionStatus === "active" ? "text-emerald-400" : "text-muted-foreground",
+                          sub: null,
+                        },
+                        ...(subscription?.current_period_end ? [{
+                          label: currentPlan.billing_interval === "free" ? "Expires" : "Next billing",
+                          value: fmtDate(subscription.current_period_end),
+                          sub: (() => {
+                            const days = daysUntil(subscription.current_period_end);
+                            if (days === null) return "Expired";
+                            if (days === 0) return "Today";
+                            return `in ${days} day${days !== 1 ? "s" : ""}`;
+                          })(),
+                          accent: (() => {
+                            const days = daysUntil(subscription.current_period_end);
+                            if (days === null || days < 7) return "text-amber-400";
+                            return "text-foreground";
+                          })(),
+                          icon: <Calendar className="size-3 text-muted-foreground" />,
+                        }] : []),
+                        ...(subscription?.current_period_start ? [{
+                          label: "Active since",
+                          value: fmtDate(subscription.current_period_start),
+                          sub: null,
+                        }] : []),
+                      ].map((item) => (
+                        <div key={item.label}>
+                          <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                            {item.label}
+                          </p>
+                          <p className={`mt-1 flex items-center gap-1.5 text-[14px] font-semibold capitalize ${"accent" in item && item.accent ? item.accent : "text-foreground"}`}>
+                            {"icon" in item && item.icon}
+                            {item.value}
+                          </p>
+                          {item.sub && (
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{item.sub}</p>
+                          )}
                         </div>
-                        <Alert className="border-border bg-muted">
-                          <AlertDescription>
-                            {provider === "paystack"
-                              ? "Paystack signs webhook requests with your secret key. Keep PAYSTACK_SECRET_KEY on the backend, then add the webhook URL above in Paystack Settings > API Keys & Webhooks."
-                              : `Stripe validates the ${selectedProviderConfig.signature_header} header using ${selectedProviderConfig.signature_source}.`}
-                          </AlertDescription>
-                        </Alert>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                      ))}
+                    </div>
 
-                <div className="grid gap-4 xl:grid-cols-2">
-                  {plans.map((plan) => {
-                    const isSelected = checkoutPlan?.id === plan.id;
-                    const isCurrent = currentPlan?.id === plan.id;
-
-                    return (
-                      <Card
-                        key={plan.id}
-                        className="border border-border bg-card"
-                      >
-                        <CardHeader className="space-y-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <CardTitle className="text-xl tracking-tight">
-                                {getPlanDisplayName(plan)}
-                              </CardTitle>
-                              <p className="mt-2 text-sm text-muted-foreground">
-                                {plan.description}
-                              </p>
+                    {/* Period progress bar for paid plans */}
+                    {subscription?.current_period_start && subscription?.current_period_end && currentPlan.billing_interval !== "free" && (
+                      <div className="border-t border-border px-5 py-4">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                            Billing period
+                          </span>
+                          <span className="font-mono text-[9px] text-muted-foreground/50">
+                            {fmtDate(subscription.current_period_start, { month: "short", day: "numeric" })}
+                            {" → "}
+                            {fmtDate(subscription.current_period_end, { month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                        </div>
+                        {(() => {
+                          const start = new Date(subscription.current_period_start!).getTime();
+                          const end = new Date(subscription.current_period_end!).getTime();
+                          const pct = Math.min(100, Math.max(0, ((periodNowMs - start) / (end - start)) * 100));
+                          return (
+                            <div className="h-1 w-full bg-muted/40 overflow-hidden">
+                              <div
+                                className="h-full bg-primary transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
-                            {isCurrent ? (
-                              <Badge variant="secondary">Current</Badge>
-                            ) : isSelected ? (
-                              <Badge variant="outline">Selected</Badge>
-                            ) : null}
-                          </div>
-                          <div className="text-3xl font-semibold tracking-tight text-foreground">
-                            {formatPlanPrice(plan)}
-                            <span className="ml-1 text-sm font-normal text-muted-foreground">
-                              {getPlanCadence(plan)}
-                            </span>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              asChild
-                              size="sm"
-                              variant={provider === "paystack" ? "default" : "outline"}
-                            >
-                              <Link
-                                href={`/settings?tab=billing&plan=${plan.slug}&provider=paystack`}
-                              >
-                                Paystack {formatPlanProviderPrice(plan, "paystack")}
-                              </Link>
-                            </Button>
-                            <Button
-                              asChild
-                              size="sm"
-                              variant={provider === "stripe" ? "default" : "outline"}
-                            >
-                              <Link
-                                href={`/settings?tab=billing&plan=${plan.slug}&provider=stripe`}
-                              >
-                                Stripe {formatPlanProviderPrice(plan, "stripe")}
-                              </Link>
-                            </Button>
-                          </div>
-                          <Separator />
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              disabled={
-                                paymentMutation.isPending ||
-                                plan.slug === "free"
-                              }
-                              onClick={() =>
-                                paymentMutation.mutate({
-                                  planId: plan.id,
-                                  provider,
-                                })
-                              }
-                            >
-                              {plan.slug === "free"
-                                ? "Included"
-                                : paymentMutation.isPending && isSelected
-                                  ? "Preparing checkout..."
-                                  : `Continue with ${provider === "stripe" ? "Stripe" : "Paystack"}`}
-                            </Button>
-                            {!isSelected ? (
-                              <Button asChild type="button" variant="outline">
-                                <Link
-                                  href={`/settings?tab=billing&plan=${plan.slug}&provider=${provider}`}
-                                >
-                                  Select plan
-                                </Link>
-                              </Button>
-                            ) : null}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Plan grid */}
+                <div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Available plans
+                    </p>
+                    {subscriptionQuery.isRefetching && (
+                      <RefreshCw className="size-3 animate-spin text-muted-foreground/40" />
+                    )}
+                  </div>
+
+                  {plansQuery.isLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="border border-border bg-card p-5 space-y-3">
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-8 w-24" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-3/4" />
+                          <Skeleton className="h-9 w-full mt-4" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      {plans.map((plan) => (
+                        <PlanCard
+                          key={plan.id}
+                          plan={plan}
+                          isCurrent={currentPlan?.id === plan.id}
+                          accessToken={accessToken}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {paymentMutation.isError ? (
-                  <Alert className="border-border bg-muted">
-                    <AlertDescription>
-                      {paymentMutation.error instanceof Error
-                        ? paymentMutation.error.message
-                        : "We couldn’t start checkout right now."}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-              </div>
-            ) : null}
+                {/* Info strip */}
+                <div className="flex flex-wrap items-center gap-5 border border-border bg-muted/20 px-5 py-3">
+                  <p className="text-[12px] text-muted-foreground">
+                    Paystack charges in NGN. Stripe charges in USD. You can switch plans at any time.
+                  </p>
+                  <Link
+                    href="/pricing"
+                    className="ml-auto font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    View pricing →
+                  </Link>
+                </div>
 
-            {activeTab === "notifications" ? (
-              <div className="space-y-6">
-                <Card className="border border-border bg-card">
-                  <CardHeader>
-                    <CardTitle className="text-lg tracking-tight">
-                      Browser notifications
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">
-                        {notificationPermission === "unsupported"
-                          ? "Unsupported"
-                          : notificationPermission}
-                      </Badge>
-                      <Badge variant="outline">Web notifications</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Enable browser notifications to receive prompt and billing
-                      updates on this device.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        disabled={
-                          notificationPermission === "unsupported" ||
-                          registerNotificationsMutation.isPending
-                        }
-                        onClick={() => registerNotificationsMutation.mutate()}
-                      >
-                        {registerNotificationsMutation.isPending
-                          ? "Enabling..."
-                          : "Enable notifications"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          notificationPermission === "unsupported" ||
-                          removeNotificationsMutation.isPending
-                        }
-                        onClick={() => removeNotificationsMutation.mutate()}
-                      >
-                        {removeNotificationsMutation.isPending
-                          ? "Removing..."
-                          : "Disable on this browser"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={
-                          notificationPermission !== "granted" ||
-                          typeof window === "undefined"
-                        }
-                        onClick={() => {
-                          if ("Notification" in window && window.Notification.permission === "granted") {
-                            new window.Notification("Thynk test notification", {
-                              body: "Your browser notifications are working.",
-                            });
-                          }
-                        }}
-                      >
-                        Send test notification
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* ── Payment history ── */}
+                <div className="border border-border bg-card">
+                  <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+                    <Receipt className="size-3.5 text-muted-foreground" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Payment history
+                    </span>
+                    {paymentsQuery.isRefetching && (
+                      <RefreshCw className="ml-auto size-3 animate-spin text-muted-foreground/40" />
+                    )}
+                  </div>
 
-                <Card className="border border-border bg-card">
-                  <CardHeader>
-                    <CardTitle className="text-lg tracking-tight">
-                      Notification history
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {notificationsQuery.isLoading ? (
-                      <>
-                        <Skeleton className="h-14 w-full" />
-                        <Skeleton className="h-14 w-full" />
-                      </>
-                    ) : notificationsQuery.isError ? (
-                      <Alert className="border-border bg-muted">
-                        <AlertDescription>
-                          We couldn’t load your notifications right now.
-                        </AlertDescription>
-                      </Alert>
-                    ) : notificationsQuery.data?.length ? (
-                      notificationsQuery.data.map((item) => (
-                        <div
-                          key={item.id}
-                          className="border border-border bg-background p-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
+                  {paymentsQuery.isLoading ? (
+                    <div className="divide-y divide-border">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center gap-4 px-5 py-4">
+                          <Skeleton className="h-4 w-28" />
+                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className="ml-auto h-5 w-14" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : paymentsQuery.isError ? (
+                    <div className="flex items-center gap-2 px-5 py-4 text-[13px] text-muted-foreground">
+                      <AlertCircle className="size-3.5 text-muted-foreground/40" />
+                      Could not load payment history.
+                    </div>
+                  ) : (paymentsQuery.data?.length ?? 0) === 0 ? (
+                    <div className="flex flex-col items-center gap-3 px-5 py-10 text-center">
+                      <Receipt className="size-7 text-muted-foreground/20" />
+                      <div>
+                        <p className="text-[13px] font-medium text-foreground">No payments yet</p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground">
+                          Your transactions will appear here once you upgrade to a paid plan.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Table header */}
+                      <div className="hidden grid-cols-[1fr_100px_120px_100px] border-b border-border/60 bg-muted/20 px-5 py-2 sm:grid">
+                        {["Transaction", "Provider", "Amount", "Status"].map((h) => (
+                          <span key={h} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="divide-y divide-border">
+                        {paymentsQuery.data!.map((p) => (
+                          <div
+                            key={p.id}
+                            className="grid grid-cols-1 gap-1.5 px-5 py-4 sm:grid-cols-[1fr_100px_120px_100px] sm:items-center sm:gap-0"
+                          >
+                            {/* Reference + date */}
                             <div>
-                              <p className="text-sm font-medium text-foreground">
-                                {item.title}
+                              <p className="font-mono text-[11px] text-foreground">
+                                {p.provider_reference}
                               </p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {item.body}
+                              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {p.plan_snapshot?.name ?? "Plan payment"}
+                              </p>
+                              <p className="mt-0.5 flex items-center gap-1 font-mono text-[9px] text-muted-foreground/50">
+                                <Calendar className="size-2.5" />
+                                {p.created_at ? fmtDateTime(p.created_at) : "Date unavailable"}
                               </p>
                             </div>
-                            <Badge variant={item.is_read ? "outline" : "secondary"}>
-                              {item.is_read ? "Read" : "New"}
-                            </Badge>
+
+                            {/* Provider */}
+                            <span className="font-mono text-[11px] capitalize text-muted-foreground">
+                              {p.provider}
+                            </span>
+
+                            {/* Amount */}
+                            <span className="text-[13px] font-semibold text-foreground">
+                              {fmtAmount(p.amount, p.currency)}
+                            </span>
+
+                            {/* Status */}
+                            <PayStatusBadge status={p.status} />
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <Alert className="border-border bg-muted">
-                        <AlertDescription>
-                          No notifications yet. Prompt, billing, and system updates
-                          will appear here.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </CardContent>
-                </Card>
+                        ))}
+                      </div>
+
+                      {/* Summary footer */}
+                      <div className="flex items-center justify-between border-t border-border/60 px-5 py-3">
+                        <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50">
+                          {paymentsQuery.data!.filter((p) => p.status === "success").length} successful
+                          {" · "}
+                          {paymentsQuery.data!.length} total
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-foreground">
+                          Total paid:{" "}
+                          {(() => {
+                            const ngnTotal = paymentsQuery.data!
+                              .filter((p) => p.status === "success" && p.currency.toUpperCase() === "NGN")
+                              .reduce((s, p) => s + p.amount, 0);
+                            const usdTotal = paymentsQuery.data!
+                              .filter((p) => p.status === "success" && p.currency.toUpperCase() !== "NGN")
+                              .reduce((s, p) => s + p.amount, 0);
+                            const parts = [];
+                            if (ngnTotal > 0) parts.push(`₦${ngnTotal.toLocaleString()}`);
+                            if (usdTotal > 0) parts.push(`$${usdTotal.toLocaleString()}`);
+                            return parts.length > 0 ? parts.join(" + ") : "—";
+                          })()}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            ) : null}
+            )}
+
+            {/* ── Notifications tab ── */}
+            {activeTab === "notifications" && (
+              <div className="space-y-5">
+                {/* Browser notifications */}
+                <div className="border border-border bg-card">
+                  <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+                    <Bell className="size-3.5 text-muted-foreground" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Browser notifications
+                    </span>
+                    <span className={[
+                      "ml-auto font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 border",
+                      notifPermission === "granted"
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                        : notifPermission === "denied"
+                        ? "border-destructive/20 bg-destructive/5 text-destructive"
+                        : "border-border text-muted-foreground",
+                    ].join(" ")}>
+                      {notifPermission === "unsupported" ? "Not supported" : notifPermission}
+                    </span>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <p className="text-[13px] text-muted-foreground">
+                      Enable browser notifications to receive prompt and billing updates on this device.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                      <span>
+                        Registered devices: {notificationSummaryQuery.data?.registered_devices ?? 0}
+                      </span>
+                      <span className="text-muted-foreground/40">•</span>
+                      <span>
+                        Unread: {notificationSummaryQuery.data?.unread_count ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={notifPermission === "unsupported" || registerNotifMut.isPending}
+                        onClick={() => registerNotifMut.mutate()}
+                        className="flex items-center gap-2 bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                      >
+                        {registerNotifMut.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                        Enable notifications
+                      </button>
+                      <button
+                        type="button"
+                        disabled={notifPermission === "unsupported" || removeNotifMut.isPending}
+                        onClick={() => removeNotifMut.mutate()}
+                        className="flex items-center gap-2 border border-border bg-background px-4 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      >
+                        {removeNotifMut.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                        Disable on this browser
+                      </button>
+                      <button
+                        type="button"
+                        disabled={notifPermission !== "granted" || testNotifMut.isPending}
+                        onClick={() => testNotifMut.mutate()}
+                        className="flex items-center gap-2 border border-border bg-background px-4 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      >
+                        {testNotifMut.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                        Send test
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notification history */}
+                <div className="border border-border bg-card">
+                  <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+                    <Bell className="size-3.5 text-muted-foreground" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      Notification history
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => markAllNotifMut.mutate()}
+                      disabled={markAllNotifMut.isPending || (notificationSummaryQuery.data?.unread_count ?? 0) === 0}
+                      className="ml-auto border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      {markAllNotifMut.isPending ? "Marking..." : "Mark all as read"}
+                    </button>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {notificationsQuery.isLoading ? (
+                      <div className="space-y-3 p-5">
+                        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
+                      </div>
+                    ) : notificationsQuery.isError ? (
+                      <div className="px-5 py-4 text-[13px] text-muted-foreground">
+                        Could not load notifications.
+                      </div>
+                    ) : (notificationsQuery.data?.length ?? 0) === 0 ? (
+                      <div className="px-5 py-8 text-center">
+                        <Bell className="mx-auto size-6 text-muted-foreground/20" />
+                        <p className="mt-3 text-[13px] text-muted-foreground">No notifications yet.</p>
+                        <p className="mt-1 text-[12px] text-muted-foreground/60">
+                          Prompt, billing, and system updates will appear here.
+                        </p>
+                      </div>
+                    ) : (
+                      notificationsQuery.data!.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            if (!item.is_read) {
+                              markNotifReadMut.mutate(item.id);
+                            }
+                          }}
+                          className="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/20"
+                        >
+                          <div className={[
+                            "mt-0.5 size-1.5 shrink-0 rounded-full",
+                            item.is_read ? "bg-muted-foreground/30" : "bg-primary",
+                          ].join(" ")} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-medium text-foreground">{item.title}</p>
+                            <p className="mt-0.5 text-[12px] text-muted-foreground">{item.body}</p>
+                            <p className="mt-2 text-[11px] text-muted-foreground/70">{fmtDateTime(item.created_at)}</p>
+                          </div>
+                          <span className={[
+                            "shrink-0 font-mono text-[9px] border px-1.5 py-0.5",
+                            item.is_read
+                              ? "border-border text-muted-foreground/40"
+                              : "border-primary/20 bg-primary/10 text-primary",
+                          ].join(" ")}>
+                            {item.is_read ? "Read" : "New"}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </SectionContainer>
+
       <SiteFooter />
     </div>
   );

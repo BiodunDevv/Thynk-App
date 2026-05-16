@@ -191,7 +191,7 @@ function ResendButton({
 
   return (
     <div className="flex items-center justify-center gap-1.5 pt-1">
-      <span className="text-[13px] text-muted-foreground">Didn't receive it?</span>
+      <span className="text-[13px] text-muted-foreground">Didn&apos;t receive it?</span>
       {canResend ? (
         <button
           type="button"
@@ -210,15 +210,23 @@ function ResendButton({
 }
 
 /* ── Auth steps progress bar ────────────────────────────────────── */
-const STEP_VIEWS: AuthView[][] = [
-  ["register", "verify-email", "sign-in"],
-  ["forgot-password", "verify-reset", "reset-password"],
-];
-
 function StepBar({ view }: { view: AuthView }) {
-  const flow = STEP_VIEWS.find((f) => f.includes(view));
+  const flow =
+    view === "verify-email"
+      ? ["register", "verify-email"]
+      : view === "verify-reset" || view === "reset-password"
+        ? ["forgot-password", "verify-reset", "reset-password"]
+        : null;
+
   if (!flow) return null;
-  const step = flow.indexOf(view);
+
+  const step =
+    view === "verify-email"
+      ? 1
+      : view === "verify-reset"
+        ? 1
+        : 2;
+
   return (
     <div className="flex items-center gap-1 px-8 pt-5">
       {flow.map((_, i) => (
@@ -341,7 +349,6 @@ export function AuthModal({
   // Auto-submit when all 6 digits filled
   React.useEffect(() => {
     if (isOtpView && code.length === 6) {
-      resetFeedback();
       if (view === "verify-email") verifyEmailMutation.mutate();
       if (view === "verify-reset") verifyResetMutation.mutate();
     }

@@ -237,7 +237,7 @@ export default function TemplatesPage() {
 
   function handleUse(template: TemplateRecord) {
     if (!session) { openAuthModal("register"); return; }
-    window.location.href = `/workspace?template=${template.id}`;
+    window.location.href = `/workspace?prompt=${encodeURIComponent(template.template_content)}`;
   }
 
   function clearFilters() {

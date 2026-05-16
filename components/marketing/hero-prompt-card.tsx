@@ -159,7 +159,7 @@ export function HeroPromptCard({
             You&apos;ve already used your free test.
           </p>
           <p className="text-[12px] text-muted-foreground">
-            Sign up for 5 free generations per day.
+            Sign up for 5 free generations per week.
           </p>
           <Button
             size="sm"

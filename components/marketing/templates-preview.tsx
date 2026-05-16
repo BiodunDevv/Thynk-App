@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight, Lock, FileText,
   Palette, Code2, GraduationCap, Layers,
@@ -11,6 +12,8 @@ import {
 import { SectionContainer } from "@/components/shared/section-container";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getTemplates, type TemplateRecord } from "@/lib/api/templates";
+import { useAuthSession } from "@/lib/auth/session";
+import { useAuthModal } from "@/components/auth/auth-modal-provider";
 
 /* ── Category meta — identical to admin dashboard ────────────────── */
 
@@ -40,13 +43,14 @@ import * as React from "react";
 
 /* ── Card — exact same structure as admin TemplateCard ───────────── */
 
-function MiniTemplateCard({ template }: { template: TemplateRecord }) {
+function MiniTemplateCard({ template, onUse }: { template: TemplateRecord; onUse: (t: TemplateRecord) => void }) {
   const meta = getCategoryMeta(template.category);
   const Icon = meta.icon;
 
   return (
-    <Link
-      href="/templates"
+    <button
+      type="button"
+      onClick={() => onUse(template)}
       className="group flex flex-col border border-border bg-card text-left transition-all duration-150 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
     >
       {/* Cover */}
@@ -106,10 +110,10 @@ function MiniTemplateCard({ template }: { template: TemplateRecord }) {
           {meta.label}
         </span>
         <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40">
-          Use template
+          Use template →
         </span>
       </div>
-    </Link>
+    </button>
   );
 }
 
@@ -139,11 +143,23 @@ function SkeletonCard() {
 /* ── Section ─────────────────────────────────────────────────────── */
 
 export function TemplatesPreview() {
+  const router = useRouter();
+  const session = useAuthSession();
+  const { openAuthModal } = useAuthModal();
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["templates"],
     queryFn: getTemplates,
     staleTime: 5 * 60_000,
   });
+
+  function handleUseTemplate(t: TemplateRecord) {
+    if (!session) {
+      openAuthModal("register");
+      return;
+    }
+    router.push(`/workspace?prompt=${encodeURIComponent(t.template_content)}`);
+  }
 
   const templates = (data ?? []).slice(0, 6);
   const hasTemplates = !isLoading && !isError && templates.length > 0;
@@ -224,7 +240,7 @@ export function TemplatesPreview() {
         <>
           <div className="grid grid-cols-1 gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
             {templates.map((t) => (
-              <MiniTemplateCard key={t.id} template={t} />
+              <MiniTemplateCard key={t.id} template={t} onUse={handleUseTemplate} />
             ))}
           </div>
 

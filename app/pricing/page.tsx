@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ArrowRight, Zap } from "lucide-react";
+import { Check, ArrowRight, Zap, CheckCircle2, CreditCard } from "lucide-react";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SectionContainer } from "@/components/shared/section-container";
+import { useAuthSession } from "@/lib/auth/session";
 import { createCheckoutUrl } from "@/lib/billing/checkout";
 import { getPlans } from "@/lib/api/plans";
+import { getCurrentUser } from "@/lib/api/users";
+import { getMySubscription } from "@/lib/api/subscriptions";
 import {
   formatPlanPrice,
   getPlanBadge,
@@ -22,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const FAQ_ITEMS = [
   {
     q: "Can I start without a credit card?",
-    a: "Yes. The Free plan requires no payment details. You get 5 generations per day forever.",
+    a: "Yes. The Free plan requires no payment details. You get 5 generations per week with automatic weekly resets.",
   },
   {
     q: "What counts as a generation?",
@@ -39,12 +42,34 @@ const FAQ_ITEMS = [
 ];
 
 export default function PricingPage() {
+  const session = useAuthSession();
+  const accessToken = session?.tokens.access_token ?? "";
+
   const plansQuery = useQuery({
     queryKey: ["plans"],
     queryFn: getPlans,
   });
+  const userQuery = useQuery({
+    queryKey: ["user", "me", accessToken],
+    queryFn: () => getCurrentUser(accessToken),
+    enabled: Boolean(accessToken),
+    staleTime: 30_000,
+  });
+  const subscriptionQuery = useQuery({
+    queryKey: ["subscription", "me", accessToken],
+    queryFn: () => getMySubscription(accessToken),
+    enabled: Boolean(accessToken),
+    staleTime: 30_000,
+  });
 
   const plans = plansQuery.data ?? [];
+  const user = userQuery.data ?? session?.user ?? null;
+  const subscription = subscriptionQuery.data ?? session?.subscription ?? null;
+  const currentPlan =
+    plans.find((p) => p.id === subscription?.plan_id) ??
+    plans.find((p) => p.id === user?.current_plan_id) ??
+    plans.find((p) => p.id === session?.plan?.plan_id) ??
+    null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,6 +93,26 @@ export default function PricingPage() {
               Start free, upgrade when prompt work becomes part of your daily flow.
               Prices in NGN — no hidden fees.
             </p>
+            {session && currentPlan && (
+              <div className="mt-6 inline-flex items-center gap-2 border border-border bg-card px-3.5 py-2 shadow-sm">
+                <CheckCircle2 className="size-3.5 text-emerald-500" />
+                <div className="text-left">
+                  <p className="text-[13px] font-medium text-foreground">
+                    Active subscription: {getPlanDisplayName(currentPlan)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {subscription?.status === "active" ? "Your plan is active now." : "Your account billing is being tracked here."}
+                  </p>
+                </div>
+                <Link
+                  href="/settings?tab=billing"
+                  className="ml-2 inline-flex items-center gap-1.5 border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  <CreditCard className="size-3.5" />
+                  Manage
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* ── Plan grid ────────────────────── */}
@@ -100,6 +145,7 @@ export default function PricingPage() {
               {plans.map((plan) => {
                 const badge = getPlanBadge(plan);
                 const isFeatured = Boolean(badge);
+                const isCurrent = currentPlan?.id === plan.id;
 
                 return (
                   <div key={plan.id} className="relative flex flex-col bg-card p-7">
@@ -109,9 +155,14 @@ export default function PricingPage() {
                         {badge}
                       </span>
                     )}
+                    {isCurrent && (
+                      <span className="absolute left-0 top-0 border-r border-b border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] text-emerald-500">
+                        Active
+                      </span>
+                    )}
 
                     {/* Plan label */}
-                    <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                    <p className={`font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground ${isCurrent || badge ? "mt-6" : ""}`}>
                       {getPlanDisplayName(plan)}
                     </p>
 
@@ -135,7 +186,7 @@ export default function PricingPage() {
                       <Zap className="size-3 text-primary" />
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {plan.generation_limit === 5
-                          ? "5 generations / day"
+                          ? "5 generations / week"
                           : plan.generation_limit >= 30000
                           ? "30,000 generations / year"
                           : `${plan.generation_limit.toLocaleString()} generations / mo`}
@@ -160,17 +211,23 @@ export default function PricingPage() {
                     {/* CTA */}
                     <div className="mt-7">
                       <Link
-                        href={createCheckoutUrl("/get-started", {
-                          planSlug: plan.slug,
-                          source: "pricing-page",
-                        })}
+                        href={
+                          isCurrent
+                            ? "/settings?tab=billing"
+                            : createCheckoutUrl("/get-started", {
+                                planSlug: plan.slug,
+                                source: "pricing-page",
+                              })
+                        }
                         className={
-                          isFeatured
+                          isCurrent
+                            ? "flex w-full items-center justify-center gap-2 border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                            : isFeatured
                             ? "flex w-full items-center justify-center gap-2 bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
                             : "flex w-full items-center justify-center gap-2 border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                         }
                       >
-                        {getPlanCta(plan)}
+                        {isCurrent ? "Manage plan" : getPlanCta(plan)}
                         <ArrowRight className="size-3.5" />
                       </Link>
                     </div>
