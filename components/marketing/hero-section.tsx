@@ -220,16 +220,74 @@ function ImagePreview({ src, onRemove }: { src: string; onRemove: () => void }) 
   );
 }
 
-/* ── Usage ring ──────────────────────────────────────────────────── */
-function UsageRing({ used, limit, planSlug }: { used: number; limit: number; planSlug: string }) {
+/* ── Usage summary ───────────────────────────────────────────────── */
+function UsageRing({
+  used,
+  limit,
+  planSlug,
+  subscriptionGenerationsRemaining,
+  grantedCreditsRemaining,
+  totalPointsRemaining,
+}: {
+  used: number;
+  limit: number;
+  planSlug: string;
+  subscriptionGenerationsRemaining: number;
+  grantedCreditsRemaining: number;
+  totalPointsRemaining: number;
+}) {
   const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
   const remaining = Math.max(limit - used, 0);
   const isNear = pct >= 80;
   const isOut = pct >= 100;
-  const statusColor = isOut ? "text-destructive" : isNear ? "text-orange-500" : "text-emerald-500";
+  const statusColor = isOut ? "text-destructive" : isNear ? "text-primary" : "text-foreground";
   const R = 16;
   const C = 2 * Math.PI * R;
   const dashOffset = C - (pct / 100) * C;
+
+  if (planSlug !== "free") {
+    return (
+      <div className="flex flex-col gap-3 border border-border bg-card px-3 py-3">
+        <div className="space-y-1 border-b border-border pb-3">
+          <p className="font-mono text-[8px] uppercase tracking-[0.14em] text-muted-foreground">
+            Current plan
+          </p>
+          <div className="flex items-end justify-between gap-2">
+            <div>
+              <p className="font-mono text-[22px] font-semibold leading-none tabular-nums text-foreground">
+                {subscriptionGenerationsRemaining.toLocaleString()}
+              </p>
+              <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground">
+                subscription allowance
+              </p>
+            </div>
+            <span className="border border-border bg-muted px-2 py-1 font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground">
+              Pro
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground">
+              Granted
+            </span>
+            <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
+              {grantedCreditsRemaining.toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+            <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground">
+              Total
+            </span>
+            <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
+              {totalPointsRemaining.toLocaleString()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-2 border border-border bg-card px-3 py-3">
@@ -237,7 +295,7 @@ function UsageRing({ used, limit, planSlug }: { used: number; limit: number; pla
         <svg width="44" height="44" viewBox="0 0 44 44">
           <circle cx="22" cy="22" r={R} fill="none" stroke="var(--border)" strokeWidth="2.5" />
           <circle cx="22" cy="22" r={R} fill="none"
-            stroke={isOut ? "var(--destructive)" : isNear ? "#f97316" : "var(--primary)"}
+            stroke={isOut ? "var(--destructive)" : "var(--primary)"}
             strokeWidth="2.5" strokeDasharray={C} strokeDashoffset={dashOffset}
             strokeLinecap="round" transform="rotate(-90 22 22)"
             style={{ transition: "stroke-dashoffset 0.7s cubic-bezier(.4,0,.2,1)" }}
@@ -260,18 +318,18 @@ function UsageRing({ used, limit, planSlug }: { used: number; limit: number; pla
       {isOut ? (
         <p className="font-mono text-[7px] uppercase tracking-wider text-destructive">Limit reached</p>
       ) : isNear ? (
-        <p className="font-mono text-[7px] uppercase tracking-wider text-orange-500">Running low</p>
+        <p className="font-mono text-[7px] uppercase tracking-wider text-primary">Running low</p>
       ) : (
         <p className="font-mono text-[7px] uppercase tracking-wider text-muted-foreground/40">
-          {planSlug === "free" ? "Resets weekly" : "Active plan"}
+          Resets weekly
         </p>
       )}
-      {planSlug === "free" && (
-        <a href="/pricing"
-          className="flex w-full items-center justify-center gap-1 border border-primary/20 bg-primary/5 py-1 font-mono text-[7px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/10">
-          Upgrade <ArrowRight className="size-2" />
-        </a>
-      )}
+      <a
+        href="/pricing"
+        className="flex w-full items-center justify-center gap-1 border border-border bg-muted py-1 font-mono text-[7px] uppercase tracking-wider text-foreground transition-colors hover:bg-background"
+      >
+        Upgrade <ArrowRight className="size-2" />
+      </a>
     </div>
   );
 }
@@ -342,6 +400,9 @@ export function HeroSection() {
   const used = user?.monthly_generation_count ?? 0;
   const limit = plan?.generation_limit ?? 5;
   const planSlug = plan?.slug ?? "free";
+  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? 0;
+  const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
+  const totalPointsRemaining = user?.total_points_remaining ?? 0;
   const isAtLimit = used >= limit;
 
   React.useEffect(() => {
@@ -673,7 +734,14 @@ export function HeroSection() {
           {/* Usage ring — right side */}
           {session && user && plan && (
             <div className="hidden w-[110px] shrink-0 sm:block">
-              <UsageRing used={used} limit={limit} planSlug={planSlug} />
+              <UsageRing
+                used={used}
+                limit={limit}
+                planSlug={planSlug}
+                subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+                grantedCreditsRemaining={grantedCreditsRemaining}
+                totalPointsRemaining={totalPointsRemaining}
+              />
             </div>
           )}
         </div>

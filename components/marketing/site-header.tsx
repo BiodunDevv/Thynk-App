@@ -12,6 +12,7 @@ import {
   Settings,
   LayoutDashboard,
   ShieldCheck,
+  Bell,
   SunMedium,
   MoonStar,
   Monitor,
@@ -35,6 +36,7 @@ import { useAdminSession, clearAdminSession } from "@/lib/auth/admin-session";
 import { signedInNavigation, siteNavigation } from "@/lib/constants/navigation";
 import { getCurrentUser } from "@/lib/api/users";
 import { getPlans } from "@/lib/api/plans";
+import { getNotificationSummary } from "@/lib/api/notifications";
 
 /* ── Theme toggle (inline, no extra wrapper) ──────────────────────── */
 
@@ -89,17 +91,17 @@ function InlineThemeToggle() {
 /* ── Usage pill ───────────────────────────────────────────────────── */
 
 function UsagePill({
-  used,
-  limit,
   planSlug,
+  subscriptionGenerationsRemaining,
 }: {
-  used: number;
-  limit: number;
   planSlug: string;
+  subscriptionGenerationsRemaining: number;
 }) {
   const isFree = planSlug === "free";
-  const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
-  const remaining = Math.max(limit - used, 0);
+  const freeLimit = 5;
+  const used = Math.max(freeLimit - subscriptionGenerationsRemaining, 0);
+  const pct = freeLimit > 0 ? Math.min((used / freeLimit) * 100, 100) : 0;
+  const remaining = Math.max(subscriptionGenerationsRemaining, 0);
   const isNear = pct >= 80;
   const isOut  = pct >= 100;
 
@@ -116,6 +118,30 @@ function UsagePill({
     ? "border-orange-500/30 hover:border-orange-500/60"
     : "border-border hover:border-ring";
 
+  if (!isFree) {
+    return (
+      <Link
+        href="/settings?tab=billing"
+        className="group flex h-10 items-center gap-2.5 border border-border bg-card px-3 shadow-sm transition-colors hover:border-ring"
+        title={`${subscriptionGenerationsRemaining.toLocaleString()} current-plan generations remaining`}
+      >
+        <span className="flex size-5 shrink-0 items-center justify-center bg-muted text-foreground">
+          <Zap className="size-2.5" />
+        </span>
+
+        <span className="flex flex-col leading-none">
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+            Current plan
+          </span>
+          <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
+            {subscriptionGenerationsRemaining.toLocaleString()}
+            <span className="font-normal text-muted-foreground/50"> left</span>
+          </span>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href="/pricing"
@@ -123,7 +149,7 @@ function UsagePill({
         "group flex h-10 items-center gap-2.5 border bg-card px-3 shadow-sm transition-colors",
         borderClass,
       ].join(" ")}
-      title={`${remaining} of ${limit} generations remaining`}
+      title={`${remaining} of ${freeLimit} generations remaining`}
     >
       {/* Arc dial */}
       <span className="relative shrink-0">
@@ -148,7 +174,7 @@ function UsagePill({
         </span>
         <span className={["font-mono text-[11px] font-semibold tabular-nums", textClass].join(" ")}>
           {remaining}
-          <span className="font-normal text-muted-foreground/50">/{limit}</span>
+          <span className="font-normal text-muted-foreground/50">/{freeLimit}</span>
         </span>
       </span>
 
@@ -254,15 +280,27 @@ export function SiteHeader() {
     staleTime: 5 * 60_000,
   });
 
+  const notificationSummaryQuery = useQuery({
+    queryKey: ["notifications-summary", accessToken],
+    queryFn: () => getNotificationSummary(accessToken),
+    enabled: Boolean(accessToken) && !adminSession,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
   const user = userQuery.data;
   const sessionPlanId = session?.plan?.plan_id ?? null;
   const plan = plansQuery.data?.find((p) => p.id === user?.current_plan_id)
     ?? plansQuery.data?.find((p) => p.id === sessionPlanId)
     ?? plansQuery.data?.find((p) => p.slug === "free");
 
+  const planSlug = plan?.slug ?? "free";
+  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? 0;
+  const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
+  const totalPointsRemaining = user?.total_points_remaining ?? 0;
   const used = user?.monthly_generation_count ?? 0;
   const limit = plan?.generation_limit ?? 5;
-  const planSlug = plan?.slug ?? "free";
+  const unreadNotifications = notificationSummaryQuery.data?.unread_count ?? 0;
 
   const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
   const isNearLimit = pct >= 80;
@@ -313,7 +351,10 @@ export function SiteHeader() {
 
           {/* Usage pill — always visible for authenticated users */}
           {session && !adminSession && user && plan && (
-            <UsagePill used={used} limit={limit} planSlug={planSlug} />
+            <UsagePill
+              planSlug={planSlug}
+              subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+            />
           )}
 
           {/* Actions pill */}
@@ -368,11 +409,11 @@ export function SiteHeader() {
                         <div className="flex items-center gap-1.5">
                           <Zap className="size-3 text-primary" />
                           <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                            Generations
+                            {planSlug === "free" ? "Generations" : "Current plan"}
                           </span>
                         </div>
                         <span className={["font-mono text-[11px] font-semibold tabular-nums", isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground"].join(" ")}>
-                          {Math.max(limit - used, 0)}
+                          {planSlug === "free" ? Math.max(limit - used, 0) : subscriptionGenerationsRemaining}
                           <span className="font-normal text-muted-foreground/50"> left</span>
                         </span>
                       </div>
@@ -388,11 +429,38 @@ export function SiteHeader() {
                       {/* Sub-row */}
                       <div className="mt-1.5 flex items-center justify-between">
                         <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-                          {planSlug === "free" ? "Free · resets weekly" : planSlug.includes("monthly") ? "Pro · monthly" : "Pro · yearly"}
+                          {planSlug === "free" ? "Free · resets weekly" : planSlug.includes("monthly") ? "Current plan · monthly" : "Current plan · yearly"}
                         </span>
                         <span className="font-mono text-[9px] tabular-nums text-muted-foreground/50">
-                          {used}/{limit} used
+                          {planSlug === "free" ? `${used}/${limit} used` : `${subscriptionGenerationsRemaining.toLocaleString()} left`}
                         </span>
+                      </div>
+
+                      <div className="mt-2 grid gap-2 border-t border-border pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                            Current plan allowance
+                          </span>
+                          <span className="font-mono text-[10px] font-semibold tabular-nums text-foreground">
+                            {subscriptionGenerationsRemaining.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                            Granted credits
+                          </span>
+                          <span className="font-mono text-[10px] font-semibold tabular-nums text-foreground">
+                            {grantedCreditsRemaining.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                            Total available
+                          </span>
+                          <span className="font-mono text-[10px] font-semibold tabular-nums text-foreground">
+                            {totalPointsRemaining.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
 
                       {planSlug === "free" && (
@@ -413,6 +481,17 @@ export function SiteHeader() {
                       <Link href="/workspace" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
                         <LayoutDashboard className="size-3.5 text-muted-foreground" />
                         Workspace
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings?tab=notifications" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
+                        <Bell className="size-3.5 text-muted-foreground" />
+                        Notifications
+                        {unreadNotifications > 0 && (
+                          <span className="ml-auto border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-foreground">
+                            {unreadNotifications}
+                          </span>
+                        )}
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

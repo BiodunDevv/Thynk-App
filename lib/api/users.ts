@@ -13,6 +13,10 @@ export type UserRecord = {
   subscription_id: string | null;
   prompt_generation_count: number;
   monthly_generation_count: number;
+  subscription_generations_remaining: number;
+  granted_credits_remaining: number;
+  total_points_remaining: number;
+  credits_remaining: number;
 };
 
 export async function getCurrentUser(accessToken: string) {

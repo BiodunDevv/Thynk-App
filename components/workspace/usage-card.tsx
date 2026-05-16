@@ -63,6 +63,9 @@ export function UsageCard({
   const planName = plan ? getPlanDisplayName(plan) : "Free";
   const limit = plan?.generation_limit ?? 5;
   const usageCount = user.monthly_generation_count;
+  const subscriptionAllowanceRemaining = user.subscription_generations_remaining ?? 0;
+  const grantedCreditsRemaining = user.granted_credits_remaining ?? 0;
+  const totalPointsRemaining = user.total_points_remaining ?? 0;
   const remainingCount = limit < 0 ? null : Math.max(limit - usageCount, 0);
   const isFreePlan = !plan || plan.slug === "free";
 
@@ -83,6 +86,35 @@ export function UsageCard({
             ? "Premium templates and advanced enhancement are available."
             : `${remainingCount} generations remaining. Upgrade for higher limits and premium templates.`}
         </p>
+        <div className="space-y-3 border border-border bg-muted/30 px-3 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Current plan allowance
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {subscriptionAllowanceRemaining.toLocaleString()}
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Granted credits
+            </p>
+            <p className="text-sm font-semibold text-foreground">
+              {grantedCreditsRemaining.toLocaleString()}
+            </p>
+          </div>
+          <div className="border-t border-border pt-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Total available
+            </p>
+            <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
+              {totalPointsRemaining.toLocaleString()}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Subscription allowance and admin-granted credits are tracked separately here.
+            </p>
+          </div>
+        </div>
         <Button
           asChild
           className="w-full"

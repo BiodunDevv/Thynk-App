@@ -95,10 +95,10 @@ export default function PricingPage() {
             </p>
             {session && currentPlan && (
               <div className="mt-6 inline-flex items-center gap-2 border border-border bg-card px-3.5 py-2 shadow-sm">
-                <CheckCircle2 className="size-3.5 text-emerald-500" />
+                <CheckCircle2 className="size-3.5 text-foreground" />
                 <div className="text-left">
                   <p className="text-[13px] font-medium text-foreground">
-                    Active subscription: {getPlanDisplayName(currentPlan)}
+                    Current plan: {getPlanDisplayName(currentPlan)}
                   </p>
                   <p className="text-[11px] text-muted-foreground">
                     {subscription?.status === "active" ? "Your plan is active now." : "Your account billing is being tracked here."}
@@ -156,8 +156,8 @@ export default function PricingPage() {
                       </span>
                     )}
                     {isCurrent && (
-                      <span className="absolute left-0 top-0 border-r border-b border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] text-emerald-500">
-                        Active
+                      <span className="absolute left-0 top-0 border-r border-b border-border bg-muted px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.15em] text-foreground">
+                        Current plan
                       </span>
                     )}
 

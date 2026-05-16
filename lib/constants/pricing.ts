@@ -74,6 +74,7 @@ export function getPlanFeatures(plan: PlanRecord) {
     "Higher usage limits",
     "Premium templates",
     "Unlimited saved prompts",
+    "Deep thinking mode",
     "Advanced prompt enhancement",
     "Priority access",
   ];

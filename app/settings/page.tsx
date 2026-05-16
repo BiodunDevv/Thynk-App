@@ -106,6 +106,7 @@ function PaymentReturnBanner({ accessToken }: { accessToken: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const handledReferenceRef = React.useRef<string | null>(null);
 
   /* Paystack returns ?trxref=&reference= — both hold the same reference */
   const trxref = searchParams.get("trxref");
@@ -135,6 +136,14 @@ function PaymentReturnBanner({ accessToken }: { accessToken: string }) {
 
   React.useEffect(() => {
     if (!reference || !accessToken) return;
+    if (handledReferenceRef.current === reference) return;
+
+    const sessionKey = `thynk-payment-return:${reference}`;
+    if (typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey) === "confirmed") {
+      handledReferenceRef.current = reference;
+      dismiss();
+      return;
+    }
 
     let cancelled = false;
     async function run() {
@@ -142,19 +151,30 @@ function PaymentReturnBanner({ accessToken }: { accessToken: string }) {
         const res = await verifyPayment(accessToken, reference!);
         if (cancelled) return;
         if (isPaymentConfirmed(res)) {
+          handledReferenceRef.current = reference;
           setAlreadyVerified(Boolean(res.already_verified));
           setStatus("success");
           // Refresh JWT session so plan/subscription_status update in the navbar and all UI
           await refreshSession();
-          queryClient.invalidateQueries({ queryKey: ["subscription-current", accessToken] });
-          queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
-          queryClient.invalidateQueries({ queryKey: ["plans"] });
-          queryClient.invalidateQueries({ queryKey: ["payment-history", accessToken] });
-          toast.success(
-            res.already_verified
-              ? "Payment already confirmed — your plan is active."
-              : "Payment confirmed — your plan has been upgraded!",
-          );
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["subscription-current", accessToken] }),
+            queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] }),
+            queryClient.invalidateQueries({ queryKey: ["plans"] }),
+            queryClient.invalidateQueries({ queryKey: ["payment-history", accessToken] }),
+          ]);
+          if (typeof window !== "undefined") {
+            const toastKey = `${sessionKey}:toast`;
+            if (window.sessionStorage.getItem(toastKey) !== "shown") {
+              toast.success(
+                res.already_verified
+                  ? "Payment already confirmed — your plan is active."
+                  : "Payment confirmed — your plan has been upgraded!",
+              );
+              window.sessionStorage.setItem(toastKey, "shown");
+            }
+            window.sessionStorage.setItem(sessionKey, "confirmed");
+          }
+          dismiss();
         } else {
           setStatus("failed");
         }
@@ -365,7 +385,7 @@ function PlanCard({
                   Preparing…
                 </>
               ) : isCurrent ? (
-                "Active plan"
+                "Current plan"
               ) : (
                 <>
                   Pay with {provider === "paystack" ? "Paystack" : "Stripe"}
@@ -623,6 +643,18 @@ export default function SettingsPage() {
                           label: "Current plan",
                           value: currentPlan ? getPlanDisplayName(currentPlan) : "Free",
                         },
+                        {
+                          label: "Granted credits",
+                          value: (user?.granted_credits_remaining ?? 0).toLocaleString(),
+                        },
+                        {
+                          label: "Current plan allowance",
+                          value: (user?.subscription_generations_remaining ?? 0).toLocaleString(),
+                        },
+                        {
+                          label: "Total available",
+                          value: (user?.total_points_remaining ?? 0).toLocaleString(),
+                        },
                       ].map((item) => (
                         <div key={item.label}>
                           <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -652,7 +684,7 @@ export default function SettingsPage() {
                       <div className="flex items-center gap-2">
                         <CreditCard className="size-3.5 text-muted-foreground" />
                         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                          Active plan
+                          Current plan
                         </span>
                       </div>
                       {subscription?.provider && (
@@ -661,69 +693,115 @@ export default function SettingsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-wrap gap-x-8 gap-y-4 px-5 py-5">
-                      {[
-                        {
-                          label: "Plan",
-                          value: getPlanDisplayName(currentPlan),
-                          sub: null,
-                        },
-                        {
-                          label: "Price",
-                          value: formatPlanPrice(currentPlan),
-                          sub: getPlanCadence(currentPlan),
-                        },
-                        {
-                          label: "Generations",
-                          value: currentPlan.generation_limit >= 30000
-                            ? "30,000 / yr"
-                            : currentPlan.generation_limit === 5
-                            ? "5 / week"
-                            : `${currentPlan.generation_limit.toLocaleString()} / mo`,
-                          sub: null,
-                          icon: <Zap className="size-3 text-primary" />,
-                        },
-                        {
-                          label: "Status",
-                          value: resolvedSubscriptionStatus,
-                          accent: resolvedSubscriptionStatus === "active" ? "text-emerald-400" : "text-muted-foreground",
-                          sub: null,
-                        },
-                        ...(subscription?.current_period_end ? [{
-                          label: currentPlan.billing_interval === "free" ? "Expires" : "Next billing",
-                          value: fmtDate(subscription.current_period_end),
-                          sub: (() => {
-                            const days = daysUntil(subscription.current_period_end);
-                            if (days === null) return "Expired";
-                            if (days === 0) return "Today";
-                            return `in ${days} day${days !== 1 ? "s" : ""}`;
-                          })(),
-                          accent: (() => {
-                            const days = daysUntil(subscription.current_period_end);
-                            if (days === null || days < 7) return "text-amber-400";
-                            return "text-foreground";
-                          })(),
-                          icon: <Calendar className="size-3 text-muted-foreground" />,
-                        }] : []),
-                        ...(subscription?.current_period_start ? [{
-                          label: "Active since",
-                          value: fmtDate(subscription.current_period_start),
-                          sub: null,
-                        }] : []),
-                      ].map((item) => (
-                        <div key={item.label}>
-                          <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                            {item.label}
-                          </p>
-                          <p className={`mt-1 flex items-center gap-1.5 text-[14px] font-semibold capitalize ${"accent" in item && item.accent ? item.accent : "text-foreground"}`}>
-                            {"icon" in item && item.icon}
-                            {item.value}
-                          </p>
-                          {item.sub && (
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">{item.sub}</p>
-                          )}
+                    <div className="space-y-5 px-5 py-5">
+                      <div className="grid gap-5 border border-border bg-muted/20 p-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,1fr)]">
+                        <div className="flex h-full flex-col">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                Plan
+                              </p>
+                              <p className="mt-1 text-[28px] font-semibold leading-none tracking-tight text-foreground">
+                                {getPlanDisplayName(currentPlan)}
+                              </p>
+                              <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+                                <Zap className="size-3 text-primary" />
+                                {currentPlan.generation_limit >= 30000
+                                  ? "30,000 generations per year"
+                                  : currentPlan.generation_limit === 5
+                                  ? "5 generations per week"
+                                  : `${currentPlan.generation_limit.toLocaleString()} generations per month`}
+                              </p>
+                            </div>
+
+                            <div className="text-left lg:text-right">
+                              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                Price
+                              </p>
+                              <p className="mt-1 text-[24px] font-semibold leading-none tracking-tight text-foreground">
+                                {formatPlanPrice(currentPlan)}
+                              </p>
+                              <p className="mt-1 text-[12px] text-muted-foreground">
+                                {getPlanCadence(currentPlan)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-8 grid gap-4 border-t border-border/60 pt-4 sm:mt-auto sm:grid-cols-3">
+                            <div>
+                              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                Status
+                              </p>
+                              <p className="mt-1 text-[14px] font-semibold text-foreground capitalize">
+                                {resolvedSubscriptionStatus === "active" ? "Current plan" : resolvedSubscriptionStatus.replace("_", " ")}
+                              </p>
+                            </div>
+
+                            {subscription?.current_period_start && (
+                              <div>
+                                <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                  Active since
+                                </p>
+                                <p className="mt-1 text-[14px] font-semibold text-foreground">
+                                  {fmtDate(subscription.current_period_start)}
+                                </p>
+                              </div>
+                            )}
+
+                            {subscription?.current_period_end && (
+                              <div>
+                                <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                  {currentPlan.billing_interval === "free" ? "Expires" : "Next billing"}
+                                </p>
+                                <p className="mt-1 flex items-center gap-1.5 text-[14px] font-semibold text-foreground">
+                                  <Calendar className="size-3 text-muted-foreground" />
+                                  {fmtDate(subscription.current_period_end)}
+                                </p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  {(() => {
+                                    const days = daysUntil(subscription.current_period_end);
+                                    if (days === null) return "Expired";
+                                    if (days === 0) return "Today";
+                                    return `in ${days} day${days !== 1 ? "s" : ""}`;
+                                  })()}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      ))}
+
+                        <div className="grid gap-px border border-border bg-border sm:grid-cols-3 lg:grid-cols-1">
+                          {[
+                            {
+                              label: "Current plan allowance",
+                              value: (user?.subscription_generations_remaining ?? 0).toLocaleString(),
+                              sub: "Included with your subscription",
+                            },
+                            {
+                              label: "Granted credits",
+                              value: (user?.granted_credits_remaining ?? 0).toLocaleString(),
+                              sub: "Admin-granted support credits",
+                            },
+                            {
+                              label: "Total available",
+                              value: (user?.total_points_remaining ?? 0).toLocaleString(),
+                              sub: "Combined account value",
+                            },
+                          ].map((item) => (
+                            <div key={item.label} className="bg-card px-4 py-4">
+                              <p className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                                {item.label}
+                              </p>
+                              <p className="mt-1 text-[24px] font-semibold leading-none tracking-tight text-foreground">
+                                {item.value}
+                              </p>
+                              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                                {item.sub}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Period progress bar for paid plans */}
