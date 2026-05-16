@@ -146,10 +146,10 @@ function PaymentReturnBanner({ accessToken }: { accessToken: string }) {
           setStatus("success");
           // Refresh JWT session so plan/subscription_status update in the navbar and all UI
           await refreshSession();
-          queryClient.invalidateQueries({ queryKey: ["subscription", "me", accessToken] });
-          queryClient.invalidateQueries({ queryKey: ["user", "me", accessToken] });
+          queryClient.invalidateQueries({ queryKey: ["subscription-current", accessToken] });
+          queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
           queryClient.invalidateQueries({ queryKey: ["plans"] });
-          queryClient.invalidateQueries({ queryKey: ["my-payments", accessToken] });
+          queryClient.invalidateQueries({ queryKey: ["payment-history", accessToken] });
           toast.success(
             res.already_verified
               ? "Payment already confirmed — your plan is active."
@@ -405,7 +405,7 @@ export default function SettingsPage() {
 
   /* queries */
   const userQuery = useQuery({
-    queryKey: ["user", "me", accessToken],
+    queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken),
   });
@@ -417,7 +417,7 @@ export default function SettingsPage() {
   });
 
   const subscriptionQuery = useQuery({
-    queryKey: ["subscription", "me", accessToken],
+    queryKey: ["subscription-current", accessToken],
     queryFn: () => getMySubscription(accessToken),
     enabled: Boolean(accessToken),
   });
@@ -437,7 +437,7 @@ export default function SettingsPage() {
   });
 
   const paymentsQuery = useQuery({
-    queryKey: ["my-payments", accessToken],
+    queryKey: ["payment-history", accessToken],
     queryFn: () => getMyPayments(accessToken),
     enabled: Boolean(accessToken) && activeTab === "billing",
     staleTime: 30_000,

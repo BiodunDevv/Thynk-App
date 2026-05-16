@@ -1,0 +1,17 @@
+{
+  "name": "Thynk",
+  "short_name": "Thynk",
+  "description": "Professional prompt generation workspace for designers, developers, students, and creators.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161311",
+  "theme_color": "#b70710",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

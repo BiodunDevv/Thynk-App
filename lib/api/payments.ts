@@ -121,7 +121,7 @@ export async function verifyPayment(
 }
 
 export async function getMyPayments(accessToken: string) {
-  return apiDataRequest<PaymentRecord[]>("/payments/me", {
+  return apiDataRequest<PaymentRecord[]>("/payments/history", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

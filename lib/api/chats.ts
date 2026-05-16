@@ -25,12 +25,31 @@ export type ClarificationPayload = {
   reasoning_summary?: string | null;
 };
 
+export type PromptStep = {
+  step: number;
+  title: string;
+  content: string;
+};
+
+export type PromptDocumentSections = {
+  prompt?: string;
+  why?: string;
+  best_used_with?: string;
+  raw?: string;
+};
+
 export type RequestChatMessageMetadata = Record<string, unknown> & {
   image_urls?: string[];
+  deep_thinking?: boolean;
   type?: string;
   clarification_complete?: boolean;
   next_action?: "ask_followup" | "ready_for_final_prompt";
   clarification?: ClarificationPayload;
+  prompt_document?: PromptDocumentSections;
+  prompt_steps?: PromptStep[];
+  prompt_step_count?: number;
+  is_step_split?: boolean;
+  continuation_hint?: string;
 };
 
 export type RequestChatRecord = {
@@ -49,7 +68,7 @@ export type RequestChatRecord = {
 };
 
 export async function getMyRequestChats(accessToken: string) {
-  return apiDataRequest<RequestChatRecord[]>("/request-chats/me", {
+  return apiDataRequest<RequestChatRecord[]>("/request-chats/history", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -57,7 +76,7 @@ export async function getMyRequestChats(accessToken: string) {
 }
 
 export async function createRequestChat(
-  payload: { title: string; category: string; message: string; source?: string; image_urls?: string[] },
+  payload: { title: string; category: string; message: string; source?: string; image_urls?: string[]; deep_thinking?: boolean },
   accessToken: string,
 ): Promise<RequestChatRecord> {
   return apiDataRequest<RequestChatRecord>("/request-chats", {
@@ -72,10 +91,11 @@ export async function addMessageToChat(
   content: string,
   accessToken: string,
   image_urls?: string[],
+  deep_thinking?: boolean,
 ): Promise<RequestChatRecord> {
   return apiDataRequest<RequestChatRecord>(`/request-chats/${chatId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content, image_urls: image_urls ?? [] }),
+    body: JSON.stringify({ content, image_urls: image_urls ?? [], deep_thinking: deep_thinking ?? false }),
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
@@ -83,9 +103,11 @@ export async function addMessageToChat(
 export async function generateFinalPrompt(
   chatId: string,
   accessToken: string,
+  deepThinking?: boolean,
 ): Promise<RequestChatRecord> {
   return apiDataRequest<RequestChatRecord>(`/request-chats/${chatId}/generate`, {
     method: "POST",
+    body: JSON.stringify({ deep_thinking: deepThinking ?? false }),
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }
@@ -94,10 +116,11 @@ export async function regenerateFinalPrompt(
   chatId: string,
   accessToken: string,
   variationHint?: string,
+  deepThinking?: boolean,
 ): Promise<RequestChatRecord> {
   return apiDataRequest<RequestChatRecord>(`/request-chats/${chatId}/regenerate`, {
     method: "POST",
-    body: JSON.stringify({ variation_hint: variationHint ?? null }),
+    body: JSON.stringify({ variation_hint: variationHint ?? null, deep_thinking: deepThinking ?? false }),
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 }

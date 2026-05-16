@@ -14,7 +14,7 @@ export type SubscriptionRecord = {
 };
 
 export async function getMySubscription(accessToken: string) {
-  return apiDataRequest<SubscriptionRecord | null>("/subscriptions/me", {
+  return apiDataRequest<SubscriptionRecord | null>("/subscriptions/current", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

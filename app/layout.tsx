@@ -9,12 +9,36 @@ import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   metadataBase: new URL("http://127.0.0.1:3000"),
+  applicationName: "Thynk",
   title: {
     default: "Thynk",
     template: "%s | Thynk",
   },
   description:
     "Thynk is a professional prompt generation workspace for designers, developers, students, and creators.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    shortcut: [{ url: "/logo.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/logo.svg", type: "image/svg+xml" }],
+  },
+  openGraph: {
+    title: "Thynk",
+    description:
+      "Professional prompt generation workspace for designers, developers, students, and creators.",
+    siteName: "Thynk",
+    type: "website",
+    images: [{ url: "/logo.svg", type: "image/svg+xml", alt: "Thynk" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Thynk",
+    description:
+      "Professional prompt generation workspace for designers, developers, students, and creators.",
+    images: ["/logo.svg"],
+  },
 };
 
 export default function RootLayout({

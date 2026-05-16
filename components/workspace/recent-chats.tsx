@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function RecentChats({ accessToken }: { accessToken: string }) {
   const chatsQuery = useQuery({
-    queryKey: ["request-chats", "me"],
+    queryKey: ["request-chat-history", accessToken],
     queryFn: () => getMyRequestChats(accessToken),
   });
 
@@ -95,4 +95,3 @@ export function RecentChats({ accessToken }: { accessToken: string }) {
     </Card>
   );
 }
-

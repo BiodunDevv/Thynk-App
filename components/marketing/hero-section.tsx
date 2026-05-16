@@ -322,7 +322,7 @@ export function HeroSection() {
   const accessToken = session?.tokens.access_token ?? "";
 
   const userQuery = useQuery({
-    queryKey: ["user-me", accessToken],
+    queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken),
     staleTime: 30_000,
@@ -376,7 +376,7 @@ export function HeroSection() {
     },
     onSuccess: (chat: RequestChatRecord) => {
       toast.success("Workspace ready", { id: "create-chat" });
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? [chat, ...old] : [chat],
       );
       router.push(`/workspace?chat=${chat.id}`);

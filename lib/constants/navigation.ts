@@ -6,7 +6,7 @@ export const siteNavigation = [
 ] as const;
 
 export const signedInNavigation = [
-  { label: "Workspace", href: "/" },
+  { label: "Workspace", href: "/workspace" },
   { label: "Templates", href: "/templates" },
   { label: "Settings", href: "/settings" },
 ] as const;

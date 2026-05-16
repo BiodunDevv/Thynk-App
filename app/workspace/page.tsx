@@ -8,7 +8,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, History,
   ArrowRight, Zap, Clock, ImagePlus,
   MessageSquare, ArrowLeft, X, Search, Plus,
-  Heart, Check, CornerDownRight, BookOpen, Layers, Trash2,
+  Heart, Check, CornerDownRight, BookOpen, Layers, Trash2, Brain,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
   toggleFavoriteChat,
   type ClarificationPayload,
   type ClarificationQuestion,
+  type PromptStep,
   type RequestChatRecord,
   type RequestChatMessageMetadata,
 } from "@/lib/api/chats";
@@ -44,6 +45,12 @@ import {
   AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 /* ═══════════════════════════════════════════════════════════════════
    THINKING INDICATOR
@@ -120,13 +127,53 @@ const VARIATION_HINTS = [
   { label: "Technical depth", value: "Add technical precision, terminology, and specificity." },
 ];
 
+function parsePromptDocumentSections(content: string) {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  const promptMatch = normalized.match(/## Prompt\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const whyMatch = normalized.match(/## Why this works\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const bestUsedMatch = normalized.match(/## Best used with\s*([\s\S]*?)(?=\n## |\s*$)/i);
+
+  return {
+    prompt: promptMatch?.[1]?.trim() ?? normalized,
+    why: whyMatch?.[1]?.trim() ?? "",
+    bestUsedWith: bestUsedMatch?.[1]?.trim() ?? "",
+    raw: normalized,
+  };
+}
+
+function normalizeRenderedText(value: string) {
+  return value
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/^###\s*/gm, "")
+    .replace(/^##\s*/gm, "")
+    .replace(/^#\s*/gm, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function getDeepThinkingPreference(messages: RequestChatRecord["messages"] | undefined) {
+  if (!messages) return false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const value = messages[index]?.metadata?.deep_thinking;
+    if (typeof value === "boolean") return value;
+  }
+  return false;
+}
+
+function isPromptStepped(metadata: RequestChatMessageMetadata | undefined): metadata is RequestChatMessageMetadata & { prompt_steps: PromptStep[] } {
+  return Boolean(metadata && Array.isArray(metadata.prompt_steps) && metadata.prompt_steps.length > 0);
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    FINAL PROMPT PANEL — document-style, not bubble
 ═══════════════════════════════════════════════════════════════════ */
 function FinalPromptPanel({
-  content, version, totalVersions, variationHint, isLatest, isFavorite,
+  content, metadata, version, totalVersions, variationHint, isLatest, isFavorite,
   onRegenerate, isRegenerating, onViewVersion, onToggleFavorite,
 }: {
+  metadata?: RequestChatMessageMetadata;
   content: string; version: number; totalVersions: number;
   variationHint?: string; isLatest: boolean; isFavorite: boolean;
   onRegenerate: (hint?: string) => void;
@@ -140,15 +187,64 @@ function FinalPromptPanel({
   const [selectedHint, setSelectedHint] = React.useState<string | null>(null);
   const [showUpdateInput, setShowUpdateInput] = React.useState(false);
   const [updateRequest, setUpdateRequest] = React.useState("");
+  const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
+  const sections = React.useMemo(() => {
+    const metadataSections = metadata?.prompt_document;
+    if (metadataSections && typeof metadataSections === "object") {
+      return {
+        prompt: metadataSections.prompt ?? parsePromptDocumentSections(content).prompt,
+        why: metadataSections.why ?? "",
+        bestUsedWith: metadataSections.best_used_with ?? "",
+        raw: metadataSections.raw ?? content.replace(/\r\n/g, "\n").trim(),
+      };
+    }
+    return parsePromptDocumentSections(content);
+  }, [content, metadata]);
+  const promptSteps = React.useMemo(
+    () => (isPromptStepped(metadata) ? metadata.prompt_steps : []),
+    [metadata],
+  );
+  const hasPromptSteps = promptSteps.length > 1;
+  const activePromptStep = promptSteps[currentStepIndex] ?? null;
+  const promptDisplayText = React.useMemo(
+    () => normalizeRenderedText(activePromptStep?.content ?? sections.prompt),
+    [activePromptStep?.content, sections.prompt],
+  );
+  const whyDisplayText = React.useMemo(
+    () => normalizeRenderedText(sections.why),
+    [sections.why],
+  );
+  const bestUsedWithDisplayText = React.useMemo(
+    () => normalizeRenderedText(sections.bestUsedWith),
+    [sections.bestUsedWith],
+  );
+  const cleanText = React.useMemo(
+    () => [activePromptStep?.content ?? sections.prompt, sections.why && `Why this works\n${sections.why}`, sections.bestUsedWith && `Best used with\n${sections.bestUsedWith}`]
+      .filter(Boolean)
+      .join("\n\n"),
+    [activePromptStep?.content, sections],
+  );
 
-  function handleCopy() {
-    navigator.clipboard.writeText(content);
+  function copyValue(value: string) {
+    navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleCopyPrompt() {
+    copyValue(activePromptStep?.content ?? sections.prompt);
+  }
+
+  function handleCopyMarkdown() {
+    copyValue(sections.raw);
+  }
+
+  function handleCopyPlainText() {
+    copyValue(cleanText);
+  }
+
   function handleDownload() {
-    const blob = new Blob([content], { type: "text/markdown" });
+    const blob = new Blob([sections.raw], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `thynk-prompt-v${version}.md`; a.click();
@@ -206,6 +302,11 @@ function FinalPromptPanel({
               &quot;{variationHint}&quot;
             </span>
           )}
+          {metadata?.deep_thinking && (
+            <span className="border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
+              Deep thinking
+            </span>
+          )}
         </div>
 
         {/* Action row */}
@@ -223,13 +324,6 @@ function FinalPromptPanel({
             {isFavorite ? "Saved" : "Save"}
           </button>
           <button
-            onClick={handleCopy}
-            className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
-            {copied ? "Copied" : "Copy"}
-          </button>
-          <button
             onClick={handleDownload}
             className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           >
@@ -240,9 +334,92 @@ function FinalPromptPanel({
 
       {/* Prompt content — document body */}
       <div className="px-6 py-6">
-        <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.85] text-foreground">
-          {content}
-        </pre>
+        <div className="space-y-6">
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Paste-ready prompt</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ready to drop into ChatGPT, Claude, Gemini, Perplexity, or any other AI tool.
+                </p>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground">
+                    {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
+                    {copied ? "Copied" : "Copy"}
+                    <ChevronDown className="size-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleCopyPrompt}>
+                    Copy prompt only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyPlainText}>
+                    Copy plain text
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopyMarkdown}>
+                    Copy markdown
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {hasPromptSteps && activePromptStep && (
+              <div className="mb-3 flex items-center justify-between border border-border bg-muted/20 px-3 py-2">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-primary">
+                    Step {activePromptStep.step} of {promptSteps.length}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    This prompt is split into guided parts so you can continue step by step in another AI tool.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentStepIndex((current) => Math.max(current - 1, 0))}
+                    disabled={currentStepIndex === 0}
+                    className="border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentStepIndex((current) => Math.min(current + 1, promptSteps.length - 1))}
+                    disabled={currentStepIndex >= promptSteps.length - 1}
+                    className="border border-primary/30 bg-primary/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary/15 disabled:opacity-35"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="border border-border bg-background px-5 py-4">
+              <div className="whitespace-pre-wrap text-[14px] leading-[1.95] text-foreground">
+                {promptDisplayText}
+              </div>
+            </div>
+          </div>
+
+          {(sections.why || sections.bestUsedWith) && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {sections.why && (
+                <div className="border border-border bg-background px-4 py-4">
+                  <p className="mb-2 text-sm font-medium text-foreground">Why this works</p>
+                  <div className="whitespace-pre-wrap text-[13px] leading-[1.8] text-muted-foreground">
+                    {whyDisplayText}
+                  </div>
+                </div>
+              )}
+              {sections.bestUsedWith && (
+                <div className="border border-border bg-background px-4 py-4">
+                  <p className="mb-2 text-sm font-medium text-foreground">Best used with</p>
+                  <div className="whitespace-pre-wrap text-[13px] leading-[1.8] text-muted-foreground">
+                    {bestUsedWithDisplayText}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Bottom action strip — update + regen (latest version only) */}
@@ -337,9 +514,16 @@ function FinalPromptPanel({
                 className="mb-3 w-full border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <div className="flex items-center justify-between">
-                <p className="font-mono text-[9px] text-muted-foreground/50">
-                  {totalVersions > 1 ? `${totalVersions} versions total` : "First version"}
-                </p>
+                <div className="space-y-1">
+                  <p className="font-mono text-[9px] text-muted-foreground/50">
+                    {totalVersions > 1 ? `${totalVersions} versions total` : "First version"}
+                  </p>
+                  {metadata?.deep_thinking && (
+                    <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary/70">
+                      Deep thinking enabled
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={handleRegenSubmit}
                   className="flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
@@ -485,10 +669,103 @@ function AiQuestionBlock({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   IMAGE LIGHTBOX MODAL
+═══════════════════════════════════════════════════════════════════ */
+function ImageLightbox({ urls, startIndex, onClose }: {
+  urls: string[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const [current, setCurrent] = React.useState(startIndex);
+
+  React.useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") setCurrent((i) => Math.max(0, i - 1));
+      if (e.key === "ArrowRight") setCurrent((i) => Math.min(urls.length - 1, i + 1));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [urls.length, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute right-4 top-4 flex size-9 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <X className="size-4" />
+      </button>
+
+      {/* Counter */}
+      {urls.length > 1 && (
+        <div className="absolute left-1/2 top-4 -translate-x-1/2 border border-border bg-card px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+          {current + 1} / {urls.length}
+        </div>
+      )}
+
+      {/* Prev */}
+      {current > 0 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i - 1); }}
+          className="absolute left-4 flex size-9 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronDown className="size-4 rotate-90" />
+        </button>
+      )}
+
+      {/* Image */}
+      <div className="flex max-h-[85vh] max-w-[90vw] items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={urls[current]}
+          alt={`Image ${current + 1}`}
+          className="max-h-[85vh] max-w-[90vw] border border-border object-contain shadow-2xl"
+        />
+      </div>
+
+      {/* Next */}
+      {current < urls.length - 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i + 1); }}
+          className="absolute right-4 flex size-9 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronDown className="size-4 -rotate-90" />
+        </button>
+      )}
+
+      {/* Thumbnail strip */}
+      {urls.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2">
+          {urls.map((url, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              src={url}
+              alt={`thumb ${i + 1}`}
+              onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
+              className={`h-12 w-16 cursor-pointer border object-cover transition-all ${
+                i === current ? "border-primary opacity-100" : "border-border opacity-50 hover:opacity-80"
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    CONVERSATION BLOCK — v0.dev document style, not chat bubbles
    Each exchange (user input → AI response) is a clean section
 ═══════════════════════════════════════════════════════════════════ */
 function UserBlock({ content, time, imageUrls }: { content: string; time: string; imageUrls?: string[] }) {
+  const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
+
   return (
     <div className="py-3">
       <div className="mb-1.5 flex items-center gap-2">
@@ -499,15 +776,31 @@ function UserBlock({ content, time, imageUrls }: { content: string; time: string
         {imageUrls && imageUrls.length > 0 && (
           <div className="mb-2.5 flex flex-wrap gap-2">
             {imageUrls.map((url, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={url} alt={`attachment ${i + 1}`}
-                className="h-24 w-auto max-w-[180px] border border-border object-cover"
-              />
+              <button
+                key={i}
+                onClick={() => setLightboxIndex(i)}
+                className="group relative h-24 w-auto max-w-[180px] overflow-hidden border border-border transition-all hover:border-primary/50"
+                title="Click to view full size"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`attachment ${i + 1}`} className="h-full w-auto object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center bg-background/0 transition-colors group-hover:bg-background/30">
+                  <Search className="size-4 text-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </div>
+              </button>
             ))}
           </div>
         )}
         <p className="text-[14px] leading-relaxed text-foreground/80">{content}</p>
       </div>
+
+      {lightboxIndex !== null && imageUrls && (
+        <ImageLightbox
+          urls={imageUrls}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   );
 }
@@ -546,11 +839,6 @@ function AiBlock({
               <AiQuestionBlock question={q} onAnswer={onOptionSelect} />
             </div>
           ))}
-          {"reasoning_summary" in structured && structured.reasoning_summary ? (
-            <p className="border-l border-border pl-3 text-[11px] text-muted-foreground">
-              {structured.reasoning_summary}
-            </p>
-          ) : null}
         </div>
       ) : (
         <p className="text-[14px] leading-relaxed text-foreground">{content}</p>
@@ -721,14 +1009,78 @@ function TemplatesPanel({ onUse, onClose }: {
 ═══════════════════════════════════════════════════════════════════ */
 const CATEGORIES = ["design", "development", "student", "content", "marketing", "writing", "business"] as const;
 
+function DeepThinkingToggle({
+  enabled,
+  canUse,
+  onToggle,
+  compact = false,
+}: {
+  enabled: boolean;
+  canUse: boolean;
+  onToggle: () => void;
+  compact?: boolean;
+}) {
+  if (!canUse) {
+    return (
+      <div className={`flex items-center gap-2 border border-border bg-muted/20 ${compact ? "px-2 py-1" : "px-3 py-2"}`}>
+        <Brain className="size-3.5 text-muted-foreground/55" />
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Deep thinking
+          </p>
+          {!compact && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Available on paid plans for more thorough prompt depth.
+            </p>
+          )}
+        </div>
+        <span className="border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+          Pro
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`flex items-center gap-2 border transition-colors ${
+        enabled
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-border bg-background text-muted-foreground hover:text-foreground"
+      } ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}
+    >
+      <Brain className="size-3.5" />
+      <div className="text-left">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em]">
+          Deep thinking
+        </p>
+        {!compact && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Generate a more extensive, step-aware prompt with stronger professional detail.
+          </p>
+        )}
+      </div>
+      {enabled && (
+        <span className="border border-primary/20 bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
+          On
+        </span>
+      )}
+    </button>
+  );
+}
+
 function ChatEntryHero({
-  onCreated, promptsLeft, limit, planSlug, onShowTemplates, initialPrompt, onPromptChange,
+  onCreated, promptsLeft, limit, planSlug, onShowTemplates, initialPrompt, onPromptChange, deepThinkingEnabled, onToggleDeepThinking,
 }: {
   onCreated: (chat: RequestChatRecord) => void;
   promptsLeft: number; limit: number; planSlug: string;
   onShowTemplates: () => void;
   initialPrompt: string;
   onPromptChange: (v: string) => void;
+  deepThinkingEnabled: boolean;
+  onToggleDeepThinking: () => void;
 }) {
   const [category, setCategory] = React.useState("design");
   const [entryImages, setEntryImages] = React.useState<{ file: File; preview: string }[]>([]);
@@ -742,6 +1094,7 @@ function ChatEntryHero({
   const pct = limit > 0 ? Math.min(((limit - promptsLeft) / limit) * 100, 100) : 0;
   const isNear = pct >= 80;
   const isFree = planSlug === "free";
+  const canUseDeepThinking = !isFree;
 
   React.useEffect(() => {
     if (initialPrompt) textareaRef.current?.focus();
@@ -805,7 +1158,13 @@ function ChatEntryHero({
           setEntryUploading(false);
         }
       }
-      return createRequestChat({ title, category, message: initialPrompt.trim(), image_urls: imageUrls }, token);
+      return createRequestChat({
+        title,
+        category,
+        message: initialPrompt.trim(),
+        image_urls: imageUrls,
+        deep_thinking: deepThinkingEnabled,
+      }, token);
     },
     onMutate: () => toast.loading("Starting workspace…", { id: "entry-chat" }),
     onSuccess: (chat) => { toast.success("Workspace ready", { id: "entry-chat" }); onCreated(chat); },
@@ -892,6 +1251,14 @@ function ChatEntryHero({
             >
               <BookOpen className="size-2.5" />Library
             </button>
+          </div>
+
+          <div className="border-b border-border px-4 py-3">
+            <DeepThinkingToggle
+              enabled={deepThinkingEnabled}
+              canUse={canUseDeepThinking}
+              onToggle={onToggleDeepThinking}
+            />
           </div>
 
           {/* Attached image previews */}
@@ -1145,6 +1512,8 @@ export default function WorkspacePage() {
   const [showTemplatesPanel, setShowTemplatesPanel] = React.useState(false);
   const [showChatList, setShowChatList] = React.useState(false);
   const [confirmDialog, setConfirmDialog] = React.useState<ConfirmDialogState>(null);
+  const [deepThinkingEnabled, setDeepThinkingEnabled] = React.useState(false);
+  const [deepThinkingTouched, setDeepThinkingTouched] = React.useState(false);
   const [attachedImages, setAttachedImages] = React.useState<{ file: File; preview: string }[]>([]);
   const [isUploading, setIsUploading] = React.useState(false);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
@@ -1162,7 +1531,7 @@ export default function WorkspacePage() {
 
   /* Usage */
   const userQuery = useQuery({
-    queryKey: ["user-me", accessToken],
+    queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken), staleTime: 30_000,
   });
@@ -1179,15 +1548,20 @@ export default function WorkspacePage() {
   const limit = plan?.generation_limit ?? 5;
   const planSlug = plan?.slug ?? "free";
   const promptsLeft = Math.max(limit - used, 0);
+  const canUseDeepThinking = planSlug !== "free";
 
   /* Chats */
   const { data: chats = [], refetch: refetchChats } = useQuery({
-    queryKey: ["request-chats"],
+    queryKey: ["request-chat-history", accessToken],
     queryFn: () => getMyRequestChats(accessToken),
     enabled: Boolean(accessToken),
   });
 
   const activeChat = chats.find((c) => c.id === activeChatId) ?? null;
+  const activeChatDeepThinking = activeChat ? getDeepThinkingPreference(activeChat.messages) : false;
+  const effectiveDeepThinking = canUseDeepThinking
+    ? (activeChat ? (deepThinkingTouched ? deepThinkingEnabled : activeChatDeepThinking) : deepThinkingEnabled)
+    : false;
 
   const finalMessages = React.useMemo(
     () => (activeChat?.messages ?? []).filter((m) => m.metadata?.is_final === true),
@@ -1276,12 +1650,12 @@ export default function WorkspacePage() {
           setAttachedImages([]);
         }
       }
-      return addMessageToChat(activeChatId, content, accessToken, imageUrls);
+      return addMessageToChat(activeChatId, content, accessToken, imageUrls, effectiveDeepThinking);
     },
     onMutate: () => setIsThinking(true),
     onSuccess: (updatedChat) => {
       setIsThinking(false);
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
     },
     onError: (err: unknown) => {
@@ -1294,7 +1668,7 @@ export default function WorkspacePage() {
   const generateFinalMutation = useMutation({
     mutationFn: () => {
       if (!activeChatId) throw new Error("No active chat");
-      return generateFinalPrompt(activeChatId, accessToken);
+      return generateFinalPrompt(activeChatId, accessToken, effectiveDeepThinking);
     },
     onMutate: () => {
       setIsThinking(true);
@@ -1303,9 +1677,9 @@ export default function WorkspacePage() {
     onSuccess: (updatedChat) => {
       setIsThinking(false);
       toast.success("Prompt generated", { id: "generate-prompt" });
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
-      queryClient.invalidateQueries({ queryKey: ["user-me", accessToken] });
+      queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
     },
     onError: (err: unknown) => {
       setIsThinking(false);
@@ -1317,7 +1691,7 @@ export default function WorkspacePage() {
   const regenerateMutation = useMutation({
     mutationFn: (variationHint?: string) => {
       if (!activeChatId) throw new Error("No active chat");
-      return regenerateFinalPrompt(activeChatId, accessToken, variationHint);
+      return regenerateFinalPrompt(activeChatId, accessToken, variationHint, effectiveDeepThinking);
     },
     onMutate: () => {
       setIsThinking(true);
@@ -1326,9 +1700,9 @@ export default function WorkspacePage() {
     onSuccess: (updatedChat) => {
       setIsThinking(false);
       toast.success("New variation ready", { id: "regen-prompt" });
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
-      queryClient.invalidateQueries({ queryKey: ["user-me", accessToken] });
+      queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
     },
     onError: (err: unknown) => {
       setIsThinking(false);
@@ -1341,7 +1715,7 @@ export default function WorkspacePage() {
     mutationFn: (chatId: string) => toggleFavoriteChat(chatId, accessToken),
     onSuccess: (updatedChat) => {
       toast.success(updatedChat.is_favorite ? "Added to favorites" : "Removed from favorites");
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
     },
   });
@@ -1353,10 +1727,12 @@ export default function WorkspacePage() {
     },
     onSuccess: (deletedChat) => {
       toast.success("Workspace deleted");
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         (old ?? []).filter((chat) => chat.id !== deletedChat.id));
       if (activeChatId === deletedChat.id) {
         setActiveChatId(null);
+        setDeepThinkingEnabled(false);
+        setDeepThinkingTouched(false);
         window.history.replaceState(null, "", "/workspace");
       }
       setConfirmDialog(null);
@@ -1370,8 +1746,10 @@ export default function WorkspacePage() {
     mutationFn: () => clearRequestChats(accessToken),
     onSuccess: () => {
       toast.success("Workspace history cleared");
-      queryClient.setQueryData(["request-chats"], []);
+      queryClient.setQueryData(["request-chat-history", accessToken], []);
       setActiveChatId(null);
+      setDeepThinkingEnabled(false);
+      setDeepThinkingTouched(false);
       window.history.replaceState(null, "", "/workspace");
       setConfirmDialog(null);
     },
@@ -1389,6 +1767,12 @@ export default function WorkspacePage() {
     });
   }
 
+  function handleToggleDeepThinking() {
+    if (!canUseDeepThinking) return;
+    setDeepThinkingTouched(true);
+    setDeepThinkingEnabled((current) => !current);
+  }
+
   function handleSend() {
     const content = inputValue.trim();
     if (!content || isThinking || isUploading) return;
@@ -1401,9 +1785,11 @@ export default function WorkspacePage() {
   }
 
   function handleChatCreated(chat: RequestChatRecord) {
-    queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+    queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
       old ? [chat, ...old] : [chat]);
     setActiveChatId(chat.id);
+    setDeepThinkingEnabled(getDeepThinkingPreference(chat.messages));
+    setDeepThinkingTouched(false);
     setHeroPrompt("");
     window.history.replaceState(null, "", `/workspace?chat=${chat.id}`);
     refetchChats();
@@ -1413,6 +1799,8 @@ export default function WorkspacePage() {
   function handleUseTemplate(content: string) {
     setHeroPrompt(content);
     setActiveChatId(null);
+    setDeepThinkingEnabled(false);
+    setDeepThinkingTouched(false);
     setShowTemplatesPanel(false);
     window.history.replaceState(null, "", "/workspace");
   }
@@ -1452,11 +1840,16 @@ export default function WorkspacePage() {
             onDelete={(chat) => setConfirmDialog({ mode: "delete-chat", chat })}
             onSelect={(id) => {
               setActiveChatId(id);
+              const selectedChat = chats.find((chat) => chat.id === id);
+              setDeepThinkingEnabled(selectedChat ? getDeepThinkingPreference(selectedChat.messages) : false);
+              setDeepThinkingTouched(false);
               setShowChatList(false);
               window.history.replaceState(null, "", `/workspace?chat=${id}`);
             }}
             onNew={() => {
               setActiveChatId(null);
+              setDeepThinkingEnabled(false);
+              setDeepThinkingTouched(false);
               window.history.replaceState(null, "", "/workspace");
             }}
           />
@@ -1473,11 +1866,16 @@ export default function WorkspacePage() {
                 onDelete={(chat) => setConfirmDialog({ mode: "delete-chat", chat })}
                 onSelect={(id) => {
                   setActiveChatId(id);
+                  const selectedChat = chats.find((chat) => chat.id === id);
+                  setDeepThinkingEnabled(selectedChat ? getDeepThinkingPreference(selectedChat.messages) : false);
+                  setDeepThinkingTouched(false);
                   setShowChatList(false);
                   window.history.replaceState(null, "", `/workspace?chat=${id}`);
                 }}
                 onNew={() => {
                   setActiveChatId(null);
+                  setDeepThinkingEnabled(false);
+                  setDeepThinkingTouched(false);
                   setShowChatList(false);
                   window.history.replaceState(null, "", "/workspace");
                 }}
@@ -1505,6 +1903,8 @@ export default function WorkspacePage() {
                 onShowTemplates={() => setShowTemplatesPanel(true)}
                 initialPrompt={heroPrompt}
                 onPromptChange={setHeroPrompt}
+                deepThinkingEnabled={effectiveDeepThinking}
+                onToggleDeepThinking={handleToggleDeepThinking}
               />
             </div>
           ) : (
@@ -1516,6 +1916,8 @@ export default function WorkspacePage() {
                   <button
                     onClick={() => {
                       setActiveChatId(null);
+                      setDeepThinkingEnabled(false);
+                      setDeepThinkingTouched(false);
                       window.history.replaceState(null, "", "/workspace");
                     }}
                     className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
@@ -1541,6 +1943,12 @@ export default function WorkspacePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <DeepThinkingToggle
+                    enabled={effectiveDeepThinking}
+                    canUse={canUseDeepThinking}
+                    onToggle={handleToggleDeepThinking}
+                    compact
+                  />
                   <button
                     onClick={() => setShowChatList(true)}
                     className="flex size-8 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
@@ -1595,7 +2003,9 @@ export default function WorkspacePage() {
                             <div className="h-px flex-1 bg-border" />
                           </div>
                           <FinalPromptPanel
+                            key={`${msg.id}-${effectiveViewingVersion}`}
                             content={msg.content}
+                            metadata={msg.metadata}
                             version={effectiveViewingVersion}
                             totalVersions={finalMessages.length}
                             variationHint={msg.metadata?.variation_hint as string | undefined}

@@ -14,7 +14,7 @@ export function SavedPrompts({ accessToken }: { accessToken: string }) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   const promptsQuery = useQuery({
-    queryKey: ["prompts", "me"],
+    queryKey: ["prompt-history", accessToken],
     queryFn: () => getMyPrompts(accessToken),
   });
 
@@ -100,4 +100,3 @@ export function SavedPrompts({ accessToken }: { accessToken: string }) {
     </Card>
   );
 }
-

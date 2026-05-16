@@ -50,13 +50,13 @@ export default function PricingPage() {
     queryFn: getPlans,
   });
   const userQuery = useQuery({
-    queryKey: ["user", "me", accessToken],
+    queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken),
     staleTime: 30_000,
   });
   const subscriptionQuery = useQuery({
-    queryKey: ["subscription", "me", accessToken],
+    queryKey: ["subscription-current", accessToken],
     queryFn: () => getMySubscription(accessToken),
     enabled: Boolean(accessToken),
     staleTime: 30_000,

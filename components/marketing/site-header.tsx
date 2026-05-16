@@ -241,7 +241,7 @@ export function SiteHeader() {
   const accessToken = session?.tokens.access_token ?? "";
 
   const userQuery = useQuery({
-    queryKey: ["user-me", accessToken],
+    queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
     enabled: Boolean(accessToken),
     staleTime: 30_000,

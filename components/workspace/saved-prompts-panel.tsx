@@ -143,7 +143,7 @@ export function SavedPromptsPanel({ onClose }: { onClose: () => void }) {
   const accessToken = session?.tokens.access_token ?? "";
 
   const { data: chats = [], isLoading } = useQuery({
-    queryKey: ["request-chats"],
+    queryKey: ["request-chat-history", accessToken],
     queryFn: () => getMyRequestChats(accessToken),
     enabled: Boolean(accessToken),
     staleTime: 30_000,
@@ -152,7 +152,7 @@ export function SavedPromptsPanel({ onClose }: { onClose: () => void }) {
   const unfavoriteMutation = useMutation({
     mutationFn: (chatId: string) => toggleFavoriteChat(chatId, accessToken),
     onSuccess: (updated) => {
-      queryClient.setQueryData(["request-chats"], (old: RequestChatRecord[] | undefined) =>
+      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
         old ? old.map((c) => (c.id === updated.id ? updated : c)) : [updated],
       );
       toast.success("Removed from saved");

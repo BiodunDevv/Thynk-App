@@ -17,7 +17,7 @@ export type PromptRecord = {
 };
 
 export async function getMyPrompts(accessToken: string) {
-  return apiDataRequest<PromptRecord[]>("/prompts/me", {
+  return apiDataRequest<PromptRecord[]>("/prompts/history", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },

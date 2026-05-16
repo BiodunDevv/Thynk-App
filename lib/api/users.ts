@@ -16,7 +16,7 @@ export type UserRecord = {
 };
 
 export async function getCurrentUser(accessToken: string) {
-  return apiDataRequest<UserRecord>("/users/me", {
+  return apiDataRequest<UserRecord>("/users/profile", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
