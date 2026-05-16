@@ -9,11 +9,11 @@ import { AdminAuthCard, AdminAuthField, AdminSubmitButton } from "@/components/a
 import { AdminAuthShell } from "@/components/admin/admin-auth-shell";
 import { Input } from "@/components/ui/input";
 import { adminLoginUser } from "@/lib/api/admin";
-import { writeAdminSession, useAdminSession } from "@/lib/auth/admin-session";
+import { writeAdminSession, useAdminSessionState } from "@/lib/auth/admin-session";
 
 export default function AdminSignInPage() {
   const router = useRouter();
-  const session = useAdminSession();
+  const { session, ready } = useAdminSessionState();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -21,8 +21,8 @@ export default function AdminSignInPage() {
 
   // Already signed in → go straight to dashboard
   React.useEffect(() => {
-    if (session) router.replace("/admin/dashboard");
-  }, [session, router]);
+    if (ready && session) router.replace("/admin/dashboard");
+  }, [ready, session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

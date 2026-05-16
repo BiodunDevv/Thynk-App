@@ -50,6 +50,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className={cn("h-full", "antialiased", "font-sans")}
     >
       <body className="min-h-full bg-background text-foreground">

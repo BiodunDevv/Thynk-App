@@ -32,6 +32,14 @@ function cap(s: string | null | undefined) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function paymentUserLabel(payment: {
+  user_name?: string | null;
+  user_email?: string | null;
+  user_id?: string | null;
+}) {
+  return payment.user_name || payment.user_email || "Unknown customer";
+}
+
 function StatusBadge({ status }: { status: string | null | undefined }) {
   const s = status ?? "pending";
   const cfg: Record<string, { icon: React.ElementType; color: string }> = {
@@ -79,8 +87,11 @@ export default function AdminPaymentsPage() {
       !q ||
       (p.id ?? "").toLowerCase().includes(q) ||
       (p.user_id ?? "").toLowerCase().includes(q) ||
+      (p.user_name ?? "").toLowerCase().includes(q) ||
+      (p.user_email ?? "").toLowerCase().includes(q) ||
       (p.provider_reference ?? "").toLowerCase().includes(q) ||
-      (p.provider ?? "").toLowerCase().includes(q);
+      (p.provider ?? "").toLowerCase().includes(q) ||
+      (p.plan_name ?? p.plan_snapshot?.name ?? "").toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
 
@@ -240,12 +251,15 @@ export default function AdminPaymentsPage() {
                 <p className="truncate font-mono text-[11px] text-foreground">
                   {p.provider_reference ?? p.id.slice(-12)}
                 </p>
+                <p className="mt-0.5 truncate text-[11px] text-foreground/85">
+                  {paymentUserLabel(p)}
+                </p>
                 {p.plan_snapshot?.name ? (
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {p.plan_snapshot.name}
                   </p>
                 ) : null}
-                {p.user_id && (
+                {p.user_id && !p.user_name && !p.user_email && (
                   <p className="mt-0.5 truncate font-mono text-[9px] text-muted-foreground/50">
                     user: {p.user_id.slice(-10)}
                   </p>

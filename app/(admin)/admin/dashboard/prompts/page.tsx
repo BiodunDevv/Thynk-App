@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, ChevronRight, Copy, Check, Plus,
@@ -38,6 +39,10 @@ function CategoryBadge({ category }: { category: string }) {
       {category}
     </span>
   );
+}
+
+function promptUserLabel(prompt: AdminPrompt) {
+  return prompt.user_name || prompt.user_email || "Unknown user";
 }
 
 /* ── Add to Template modal ───────────────────────────────────────── */
@@ -94,14 +99,14 @@ function AddTemplateModal({
               <Check className="size-6 text-emerald-400" />
             </div>
             <p className="text-[15px] font-semibold text-foreground">Template created.</p>
-            <p className="text-[13px] text-muted-foreground">"{title}" is now live in the template library.</p>
+            <p className="text-[13px] text-muted-foreground">&quot;{title}&quot; is now live in the template library.</p>
             <div className="mt-2 flex gap-2">
               <button onClick={onClose} className="border border-border bg-card px-5 py-2 text-[13px] font-medium text-foreground hover:bg-muted">
                 Close
               </button>
-              <a href="/admin/dashboard/templates" className="flex items-center gap-1.5 bg-primary px-5 py-2 text-[13px] font-medium text-primary-foreground hover:opacity-90">
+              <Link href="/admin/dashboard/templates" className="flex items-center gap-1.5 bg-primary px-5 py-2 text-[13px] font-medium text-primary-foreground hover:opacity-90">
                 View templates <ArrowUpRight className="size-3.5" />
-              </a>
+              </Link>
             </div>
           </div>
         ) : (
@@ -233,16 +238,6 @@ function PromptDetailPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto space-y-5 p-5">
-        {/* Original input */}
-        {prompt.rough_input && (
-          <div>
-            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">Original input</p>
-            <div className="border border-border bg-muted/30 p-4">
-              <p className="text-[12px] leading-relaxed text-muted-foreground">{prompt.rough_input}</p>
-            </div>
-          </div>
-        )}
-
         {/* Generated prompt */}
         <div>
           <div className="mb-2 flex items-center justify-between">
@@ -264,7 +259,9 @@ function PromptDetailPanel({
           <div className="divide-y divide-border">
             {([
               { label: "Prompt ID",     value: prompt.id,            mono: true },
+              { label: "User",          value: promptUserLabel(prompt) },
               { label: "User ID",       value: prompt.user_id,       mono: true },
+              prompt.source       && { label: "Source",        value: prompt.source.replaceAll("_", " ") },
               { label: "Created",       value: fmt(prompt.created_at) },
               prompt.complexity    && { label: "Complexity",    value: prompt.complexity },
               prompt.output_format && { label: "Output format", value: prompt.output_format },
@@ -325,7 +322,9 @@ export default function AdminPromptsPage() {
       const matchSearch = !q
         || p.title.toLowerCase().includes(q)
         || p.generated_prompt.toLowerCase().includes(q)
-        || p.category.includes(q);
+        || p.category.includes(q)
+        || (p.user_name ?? "").toLowerCase().includes(q)
+        || (p.user_email ?? "").toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
   }, [prompts, search, filterCategory]);
@@ -444,7 +443,7 @@ export default function AdminPromptsPage() {
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-20 text-center">
               <Search className="size-7 text-muted-foreground/25" />
               <p className="text-[14px] font-medium text-foreground">No results</p>
-              <p className="text-[12px] text-muted-foreground">No prompts match "{search}".</p>
+              <p className="text-[12px] text-muted-foreground">No prompts match &quot;{search}&quot;.</p>
               <button
                 onClick={() => { setSearch(""); setFilterCategory("all"); }}
                 className="mt-1 font-mono text-[10px] uppercase tracking-wider text-primary hover:opacity-70"
@@ -457,11 +456,20 @@ export default function AdminPromptsPage() {
               {filtered.map((p) => {
                 const isActive = selectedPrompt?.id === p.id;
                 return (
-                  <button
+                  <div
                     key={p.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedPrompt(isActive ? null : p)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedPrompt(isActive ? null : p);
+                      }
+                    }}
                     className={[
                       "group w-full border-l-2 px-5 py-4 text-left transition-colors",
+                      "cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring",
                       isActive
                         ? "border-l-primary bg-primary/5"
                         : "border-l-transparent hover:bg-muted/40",
@@ -475,11 +483,17 @@ export default function AdminPromptsPage() {
                         </div>
                         <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{p.generated_prompt}</p>
                         <div className="mt-2 flex items-center gap-3">
+                          <span className="truncate text-[11px] text-foreground/75">
+                            {promptUserLabel(p)}
+                          </span>
                           <span className="flex items-center gap-1 font-mono text-[9px] text-muted-foreground/60">
                             <Calendar className="size-2.5" />{fmt(p.created_at)}
                           </span>
                           {p.platform && (
                             <span className="font-mono text-[9px] text-muted-foreground/60">{p.platform}</span>
+                          )}
+                          {p.source && (
+                            <span className="font-mono text-[9px] text-muted-foreground/50">{p.source.replaceAll("_", " ")}</span>
                           )}
                           {p.tone && (
                             <span className="font-mono text-[9px] text-muted-foreground/50">{p.tone}</span>
@@ -500,7 +514,7 @@ export default function AdminPromptsPage() {
                         </button>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>

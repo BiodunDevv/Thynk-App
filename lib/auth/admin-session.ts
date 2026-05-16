@@ -51,7 +51,25 @@ function getSnapshot(): AdminSession | null {
 export function useAdminSession() {
   const subscribe = React.useCallback((onChange: () => void) => {
     window.addEventListener(ADMIN_EVENT_NAME, onChange);
-    return () => window.removeEventListener(ADMIN_EVENT_NAME, onChange);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === ADMIN_STORAGE_KEY) onChange();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(ADMIN_EVENT_NAME, onChange);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
   return React.useSyncExternalStore(subscribe, getSnapshot, () => null);
+}
+
+export function useAdminSessionState() {
+  const session = useAdminSession();
+  const ready = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  return { session, ready };
 }

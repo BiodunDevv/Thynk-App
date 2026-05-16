@@ -3,9 +3,8 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Zap, TrendingUp, TrendingDown, Users, BarChart2,
-  Activity, AlertTriangle, CheckCircle2, RefreshCw,
-  DollarSign, Cpu, Globe,
+  Zap, TrendingUp, TrendingDown, BarChart2,
+  Activity, AlertTriangle, RefreshCw, Cpu,
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";

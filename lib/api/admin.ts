@@ -1,8 +1,41 @@
-import { apiDataRequest, apiRequest } from "@/lib/api/client";
+import { apiDataRequest, getApiBaseUrl } from "@/lib/api/client";
 import type { AuthSessionPayload, LoginPayload } from "@/lib/api/auth";
+import { clearAdminSession } from "@/lib/auth/admin-session";
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
+}
+
+const API_V1_PREFIX = process.env.NEXT_PUBLIC_API_V1_PREFIX ?? "/api/v1";
+
+async function adminApiDataRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${getApiBaseUrl()}${API_V1_PREFIX}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+
+  const body = await response.json().catch(() => null) as {
+    message?: string;
+    data?: T;
+  } | null;
+
+  if (response.status === 401) {
+    clearAdminSession();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/admin/sign-in")) {
+      window.location.href = "/admin/sign-in";
+    }
+    throw new Error("Admin session expired. Please sign in again.");
+  }
+
+  if (!response.ok) {
+    throw new Error(body?.message ?? "Admin request failed.");
+  }
+
+  return body?.data as T;
 }
 
 /* ── Admin Auth ───────────────────────────────────────────────────── */
@@ -27,7 +60,7 @@ export type AdminOverview = {
 };
 
 export async function getAdminOverview(token: string): Promise<AdminOverview> {
-  return apiDataRequest<AdminOverview>("/admin/dashboard/overview", {
+  return adminApiDataRequest<AdminOverview>("/admin/dashboard/overview", {
     headers: authHeaders(token),
   });
 }
@@ -46,23 +79,69 @@ export type AdminUser = {
   prompt_generation_count: number;
   subscription_status: string;
   created_at: string;
+  credits_remaining: number;
+};
+
+export type AdminUserChatOutput = {
+  id: string;
+  title: string;
+  category: string;
+  created_at: string | null;
+  generated_prompt_count: number;
+  final_outputs?: string[];
+  latest_output_preview: string | null;
+  status: string;
+  is_favorite: boolean;
+};
+
+export type AdminDeleteUserResult = {
+  id: string;
+  mode: string;
+  deleted_related_records: Record<string, number>;
 };
 
 export async function getAdminUsers(token: string): Promise<AdminUser[]> {
-  return apiDataRequest<AdminUser[]>("/admin/users", {
+  return adminApiDataRequest<AdminUser[]>("/admin/users", {
     headers: authHeaders(token),
   });
 }
 
 export async function getAdminUser(token: string, userId: string): Promise<AdminUser> {
-  return apiDataRequest<AdminUser>(`/admin/users/${userId}`, {
+  return adminApiDataRequest<AdminUser>(`/admin/users/${userId}`, {
+    headers: authHeaders(token),
+  });
+}
+
+export async function getAdminUserChats(token: string, userId: string): Promise<AdminUserChatOutput[]> {
+  return adminApiDataRequest<AdminUserChatOutput[]>(`/admin/users/${userId}/chats`, {
     headers: authHeaders(token),
   });
 }
 
 export async function toggleUserStatus(token: string, userId: string): Promise<AdminUser> {
-  return apiDataRequest<AdminUser>(`/admin/users/${userId}/toggle-status`, {
+  return adminApiDataRequest<AdminUser>(`/admin/users/${userId}/toggle-status`, {
     method: "PATCH",
+    headers: authHeaders(token),
+  });
+}
+
+export async function deactivateAdminUser(token: string, userId: string): Promise<AdminUser> {
+  return adminApiDataRequest<AdminUser>(`/admin/users/${userId}/deactivate`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+  });
+}
+
+export async function reactivateAdminUser(token: string, userId: string): Promise<AdminUser> {
+  return adminApiDataRequest<AdminUser>(`/admin/users/${userId}/reactivate`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+  });
+}
+
+export async function deleteAdminUser(token: string, userId: string): Promise<AdminDeleteUserResult> {
+  return adminApiDataRequest<AdminDeleteUserResult>(`/admin/users/${userId}`, {
+    method: "DELETE",
     headers: authHeaders(token),
   });
 }
@@ -73,7 +152,7 @@ export async function grantCredits(
   amount: number,
   reason: string,
 ) {
-  return apiDataRequest<{ user_id: string; credits_added: number; remaining_credits: number }>(
+  return adminApiDataRequest<{ user_id: string; credits_added: number; remaining_credits: number }>(
     `/admin/users/${userId}/grant-credits`,
     {
       method: "POST",
@@ -89,7 +168,7 @@ export async function grantPrompts(
   amount: number,
   reason: string,
 ) {
-  return apiDataRequest<{ user_id: string; prompts_granted: number; monthly_count: number }>(
+  return adminApiDataRequest<{ user_id: string; prompts_granted: number; monthly_count: number }>(
     `/admin/users/${userId}/grant-prompts`,
     {
       method: "POST",
@@ -123,13 +202,13 @@ export type SupportTicket = {
 };
 
 export async function getAdminTickets(token: string): Promise<SupportTicket[]> {
-  return apiDataRequest<SupportTicket[]>("/admin/support/tickets", {
+  return adminApiDataRequest<SupportTicket[]>("/admin/support/tickets", {
     headers: authHeaders(token),
   });
 }
 
 export async function replyToTicket(token: string, ticketId: string, message: string) {
-  return apiDataRequest<{ ticket_id: string }>(`/admin/support/tickets/${ticketId}/reply`, {
+  return adminApiDataRequest<{ ticket_id: string }>(`/admin/support/tickets/${ticketId}/reply`, {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify({ message }),
@@ -137,7 +216,7 @@ export async function replyToTicket(token: string, ticketId: string, message: st
 }
 
 export async function updateTicketStatus(token: string, ticketId: string, status: string) {
-  return apiDataRequest<{ ticket_id: string; status: string }>(
+  return adminApiDataRequest<{ ticket_id: string; status: string }>(
     `/admin/support/tickets/${ticketId}/status`,
     {
       method: "PATCH",
@@ -148,7 +227,7 @@ export async function updateTicketStatus(token: string, ticketId: string, status
 }
 
 export async function updateTicketPriority(token: string, ticketId: string, priority: string) {
-  return apiDataRequest<{ ticket_id: string; priority: string }>(
+  return adminApiDataRequest<{ ticket_id: string; priority: string }>(
     `/admin/support/tickets/${ticketId}/priority`,
     {
       method: "PATCH",
@@ -160,40 +239,15 @@ export async function updateTicketPriority(token: string, ticketId: string, prio
 
 /* ── Request chats ────────────────────────────────────────────────── */
 
-export type RequestChat = {
-  id: string;
-  user_id: string;
-  title: string;
-  category: string;
-  status: string;
-  is_reported: boolean;
-  messages: { role: string; content: string; created_at: string }[];
-  created_at: string;
-};
-
-export async function getAdminChats(token: string): Promise<RequestChat[]> {
-  return apiDataRequest<RequestChat[]>("/admin/request-chats", {
-    headers: authHeaders(token),
-  });
-}
-
-export async function addChatNote(token: string, chatId: string, note: string) {
-  return apiDataRequest<{ chat_id: string; note: string }>(
-    `/admin/request-chats/${chatId}/notes`,
-    {
-      method: "POST",
-      headers: authHeaders(token),
-      body: JSON.stringify({ note }),
-    },
-  );
-}
-
 /* ── Payments ─────────────────────────────────────────────────────── */
 
 export type AdminPayment = {
   id: string;
   user_id: string | null;
+  user_name?: string | null;
+  user_email?: string | null;
   plan_id: string | null;
+  plan_name?: string | null;
   provider_reference: string | null;
   amount: number | null;
   currency: string | null;
@@ -214,7 +268,7 @@ export type AdminPayment = {
 };
 
 export async function getAdminPayments(token: string): Promise<AdminPayment[]> {
-  return apiDataRequest<AdminPayment[]>("/admin/payments", {
+  return adminApiDataRequest<AdminPayment[]>("/admin/payments", {
     headers: authHeaders(token),
   });
 }
@@ -243,19 +297,19 @@ export type CreateTemplatePayload = {
 };
 
 export async function getAdminTemplates(token: string): Promise<AdminTemplate[]> {
-  return apiDataRequest<AdminTemplate[]>("/admin/templates", {
+  return adminApiDataRequest<AdminTemplate[]>("/admin/templates", {
     headers: authHeaders(token),
   });
 }
 
 export async function getAdminTemplate(token: string, id: string): Promise<AdminTemplate> {
-  return apiDataRequest<AdminTemplate>(`/admin/templates/${id}`, {
+  return adminApiDataRequest<AdminTemplate>(`/admin/templates/${id}`, {
     headers: authHeaders(token),
   });
 }
 
 export async function createTemplate(token: string, payload: CreateTemplatePayload) {
-  return apiDataRequest<AdminTemplate>("/admin/templates", {
+  return adminApiDataRequest<AdminTemplate>("/admin/templates", {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -263,14 +317,14 @@ export async function createTemplate(token: string, payload: CreateTemplatePaylo
 }
 
 export async function toggleTemplate(token: string, id: string): Promise<AdminTemplate> {
-  return apiDataRequest<AdminTemplate>(`/admin/templates/${id}/toggle`, {
+  return adminApiDataRequest<AdminTemplate>(`/admin/templates/${id}/toggle`, {
     method: "PATCH",
     headers: authHeaders(token),
   });
 }
 
 export async function deleteTemplate(token: string, id: string): Promise<void> {
-  await apiDataRequest<{ id: string }>(`/admin/templates/${id}`, {
+  await adminApiDataRequest<{ id: string }>(`/admin/templates/${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });
@@ -310,35 +364,45 @@ export type CreateCouponPayload = {
   is_active: boolean;
 };
 
+export type UpdateCouponPayload = Partial<CreateCouponPayload>;
+
 export async function getAdminCoupons(token: string): Promise<AdminCoupon[]> {
-  return apiDataRequest<AdminCoupon[]>("/admin/coupons", {
+  return adminApiDataRequest<AdminCoupon[]>("/admin/coupons", {
     headers: authHeaders(token),
   });
 }
 
 export async function getAdminCoupon(token: string, id: string): Promise<AdminCoupon> {
-  return apiDataRequest<AdminCoupon>(`/admin/coupons/${id}`, {
+  return adminApiDataRequest<AdminCoupon>(`/admin/coupons/${id}`, {
     headers: authHeaders(token),
   });
 }
 
 export async function createCoupon(token: string, payload: CreateCouponPayload) {
-  return apiDataRequest<AdminCoupon>("/admin/coupons", {
+  return adminApiDataRequest<AdminCoupon>("/admin/coupons", {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
   });
 }
 
+export async function updateCoupon(token: string, id: string, payload: UpdateCouponPayload) {
+  return adminApiDataRequest<AdminCoupon>(`/admin/coupons/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function toggleCoupon(token: string, id: string): Promise<AdminCoupon> {
-  return apiDataRequest<AdminCoupon>(`/admin/coupons/${id}/toggle`, {
+  return adminApiDataRequest<AdminCoupon>(`/admin/coupons/${id}/toggle`, {
     method: "PATCH",
     headers: authHeaders(token),
   });
 }
 
 export async function deleteCoupon(token: string, id: string): Promise<void> {
-  await apiDataRequest<{ id: string }>(`/admin/coupons/${id}`, {
+  await adminApiDataRequest<{ id: string }>(`/admin/coupons/${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });
@@ -347,7 +411,7 @@ export async function deleteCoupon(token: string, id: string): Promise<void> {
 /* ── Payments (detail) ────────────────────────────────────────────── */
 
 export async function getAdminPayment(token: string, id: string): Promise<AdminPayment> {
-  return apiDataRequest<AdminPayment>(`/admin/payments/${id}`, {
+  return adminApiDataRequest<AdminPayment>(`/admin/payments/${id}`, {
     headers: authHeaders(token),
   });
 }
@@ -392,11 +456,11 @@ export type PlanCreatePayload = PlanUpdatePayload & {
 };
 
 export async function getAdminPlans(token: string): Promise<AdminPlan[]> {
-  return apiDataRequest<AdminPlan[]>("/admin/plans", { headers: authHeaders(token) });
+  return adminApiDataRequest<AdminPlan[]>("/admin/plans", { headers: authHeaders(token) });
 }
 
 export async function createAdminPlan(token: string, payload: PlanCreatePayload): Promise<AdminPlan> {
-  return apiDataRequest<AdminPlan>("/admin/plans", {
+  return adminApiDataRequest<AdminPlan>("/admin/plans", {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -404,7 +468,7 @@ export async function createAdminPlan(token: string, payload: PlanCreatePayload)
 }
 
 export async function updateAdminPlan(token: string, id: string, payload: PlanUpdatePayload): Promise<AdminPlan> {
-  return apiDataRequest<AdminPlan>(`/admin/plans/${id}`, {
+  return adminApiDataRequest<AdminPlan>(`/admin/plans/${id}`, {
     method: "PATCH",
     headers: authHeaders(token),
     body: JSON.stringify(payload),
@@ -412,14 +476,14 @@ export async function updateAdminPlan(token: string, id: string, payload: PlanUp
 }
 
 export async function toggleAdminPlan(token: string, id: string): Promise<AdminPlan> {
-  return apiDataRequest<AdminPlan>(`/admin/plans/${id}/toggle`, {
+  return adminApiDataRequest<AdminPlan>(`/admin/plans/${id}/toggle`, {
     method: "PATCH",
     headers: authHeaders(token),
   });
 }
 
 export async function deleteAdminPlan(token: string, id: string): Promise<void> {
-  await apiRequest(`/admin/plans/${id}`, {
+  await adminApiDataRequest<{ id?: string }>(`/admin/plans/${id}`, {
     method: "DELETE",
     headers: authHeaders(token),
   });
@@ -430,8 +494,10 @@ export async function deleteAdminPlan(token: string, id: string): Promise<void> 
 export type AdminPrompt = {
   id: string;
   user_id: string;
+  user_name?: string | null;
+  user_email?: string | null;
   title: string;
-  rough_input: string;
+  rough_input?: string | null;
   generated_prompt: string;
   category: string;
   tone?: string;
@@ -440,16 +506,11 @@ export type AdminPrompt = {
   output_format?: string;
   image_urls?: string[];
   created_at: string;
+  source?: string;
 };
 
 export async function getAdminPrompts(token: string): Promise<AdminPrompt[]> {
-  return apiDataRequest<AdminPrompt[]>("/admin/prompts", {
-    headers: authHeaders(token),
-  });
-}
-
-export async function getAdminUserChats(token: string, userId: string): Promise<import("@/lib/api/chats").RequestChatRecord[]> {
-  return apiDataRequest(`/admin/users/${userId}/chats`, {
+  return adminApiDataRequest<AdminPrompt[]>("/admin/prompts", {
     headers: authHeaders(token),
   });
 }
@@ -481,7 +542,7 @@ export type SystemAnalytics = {
 };
 
 export async function getSystemAnalytics(token: string, days = 30): Promise<SystemAnalytics> {
-  return apiDataRequest<SystemAnalytics>(`/admin/analytics?days=${days}`, {
+  return adminApiDataRequest<SystemAnalytics>(`/admin/analytics?days=${days}`, {
     headers: authHeaders(token),
   });
 }

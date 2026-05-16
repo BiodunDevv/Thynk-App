@@ -2,15 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Search, Zap, CheckCircle, XCircle, Users, ShieldCheck,
-  CreditCard, UserX, ChevronRight, X, Mail, Calendar,
-  BarChart2, BadgeCheck, Ban, RefreshCw,
+  Search, CheckCircle, XCircle, Users,
+  CreditCard, UserX, ChevronRight, BadgeCheck, Ban, RefreshCw,
 } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAdminUsers, grantCredits, grantPrompts, type AdminUser } from "@/lib/api/admin";
+import { getAdminUsers, type AdminUser } from "@/lib/api/admin";
 import { useAdminSession } from "@/lib/auth/admin-session";
 
 /* ── helpers ─────────────────────────────────────────────────────── */
@@ -50,19 +49,8 @@ function Avatar({ user }: { user: AdminUser }) {
   );
 }
 
-function StatusBadge({ active }: { active: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.14em] px-2 py-0.5 ${
-        active
-          ? "bg-emerald-500/10 text-emerald-400"
-          : "bg-muted text-muted-foreground/60"
-      }`}
-    >
-      <span className={`size-1.5 rounded-full ${active ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-      {active ? "Active" : "Inactive"}
-    </span>
-  );
+function safeNumber(value: number | null | undefined) {
+  return Number.isFinite(value) ? Number(value) : 0;
 }
 
 /* ── stat card ───────────────────────────────────────────────────── */
@@ -96,354 +84,6 @@ function StatCard({
   );
 }
 
-/* ── grant credits modal ─────────────────────────────────────────── */
-
-function GrantCreditsModal({
-  user,
-  token,
-  onClose,
-}: {
-  user: AdminUser;
-  token: string;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const [amount, setAmount] = React.useState("10");
-  const [reason, setReason] = React.useState("");
-  const [success, setSuccess] = React.useState(false);
-
-  const mutation = useMutation({
-    mutationFn: () => grantCredits(token, user.id, parseInt(amount), reason),
-    onSuccess: () => {
-      setSuccess(true);
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-      setTimeout(onClose, 1800);
-    },
-  });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Grant credits</p>
-            <h3 className="mt-0.5 text-[15px] font-semibold text-foreground">
-              {user.full_name ?? user.email.split("@")[0]}
-            </h3>
-          </div>
-          <button onClick={onClose} className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground">
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="px-5 py-5">
-          {success ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <div className="flex size-12 items-center justify-center bg-emerald-500/10">
-                <CheckCircle className="size-6 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold text-foreground">Credits granted</p>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">{amount} credits added to {user.email}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* quick amounts */}
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                  Quick amounts
-                </label>
-                <div className="flex gap-1.5">
-                  {["5", "10", "25", "50", "100"].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setAmount(n)}
-                      className={`flex-1 border py-1.5 font-mono text-[11px] transition-colors ${
-                        amount === n
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-background text-muted-foreground hover:border-border/80 hover:text-foreground"
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
-                  Custom amount
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full border border-border bg-background px-3 py-2.5 text-[14px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
-                  Reason
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Beta tester reward"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full border border-border bg-background px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-
-              {mutation.isError && (
-                <p className="border border-destructive/20 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
-                  {(mutation.error as { message?: string })?.message ?? "Failed to grant credits."}
-                </p>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={onClose}
-                  className="flex-1 border border-border bg-background px-4 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => mutation.mutate()}
-                  disabled={mutation.isPending || !reason.trim() || !amount || Number(amount) < 1}
-                  className="flex-1 bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                >
-                  {mutation.isPending ? "Granting…" : `Grant ${amount} credits`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── grant prompts modal ─────────────────────────────────────────── */
-
-function GrantPromptsModal({
-  user,
-  token,
-  onClose,
-}: {
-  user: AdminUser;
-  token: string;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const [amount, setAmount] = React.useState("10");
-  const [reason, setReason] = React.useState("");
-  const [success, setSuccess] = React.useState(false);
-
-  const mutation = useMutation({
-    mutationFn: () => grantPrompts(token, user.id, parseInt(amount), reason),
-    onSuccess: () => {
-      setSuccess(true);
-      qc.invalidateQueries({ queryKey: ["admin-users"] });
-      setTimeout(onClose, 1800);
-    },
-  });
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Grant prompts</p>
-            <h3 className="mt-0.5 text-[15px] font-semibold text-foreground">
-              {user.full_name ?? user.email.split("@")[0]}
-            </h3>
-          </div>
-          <button onClick={onClose} className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground">
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="px-5 py-5">
-          {success ? (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <div className="flex size-12 items-center justify-center bg-primary/10">
-                <Zap className="size-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold text-foreground">Prompts granted</p>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">{amount} generations added to {user.email}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
-                  Quick amounts
-                </label>
-                <div className="flex gap-1.5">
-                  {["5", "10", "25", "50", "100"].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setAmount(n)}
-                      className={`flex-1 border py-1.5 font-mono text-[11px] transition-colors ${
-                        amount === n
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-background text-muted-foreground hover:border-border/80 hover:text-foreground"
-                      }`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
-                  Custom amount
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full border border-border bg-background px-3 py-2.5 text-[14px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
-                  Reason
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Loyalty reward"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full border border-border bg-background px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-              {mutation.isError && (
-                <p className="border border-destructive/20 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
-                  {(mutation.error as { message?: string })?.message ?? "Failed to grant prompts."}
-                </p>
-              )}
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={onClose}
-                  className="flex-1 border border-border bg-background px-4 py-2.5 text-[13px] text-foreground transition-colors hover:bg-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => mutation.mutate()}
-                  disabled={mutation.isPending || !reason.trim() || !amount || Number(amount) < 1}
-                  className="flex-1 bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                >
-                  {mutation.isPending ? "Granting…" : `Grant ${amount} prompts`}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── user detail drawer ──────────────────────────────────────────── */
-
-function UserDrawer({ user, token, onClose }: { user: AdminUser; token: string; onClose: () => void }) {
-  const [showGrant, setShowGrant] = React.useState(false);
-  const [showGrantPrompts, setShowGrantPrompts] = React.useState(false);
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40 flex">
-        <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={onClose} />
-        <div className="flex w-full max-w-sm flex-col border-l border-border bg-card shadow-2xl">
-          {/* Header */}
-          <div className="flex items-start justify-between border-b border-border px-6 py-5">
-            <div className="flex items-center gap-3.5">
-              <div className={`flex size-12 items-center justify-center text-[15px] font-bold ${avatarColor(user.id)}`}>
-                {initials(user)}
-              </div>
-              <div>
-                <p className="text-[15px] font-semibold text-foreground">
-                  {user.full_name ?? "—"}
-                </p>
-                <p className="text-[12px] text-muted-foreground">{user.email}</p>
-              </div>
-            </div>
-            <button onClick={onClose} className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground">
-              <X className="size-4" />
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-px border-b border-border bg-border">
-            {[
-              { icon: BarChart2, label: "Generations", value: user.monthly_generation_count.toLocaleString() },
-              { icon: ShieldCheck, label: "Role", value: user.role === "SUPER_ADMIN" ? "Admin" : "User" },
-              { icon: BadgeCheck, label: "Verified", value: user.is_verified ? "Yes" : "No" },
-              { icon: RefreshCw, label: "Status", value: user.is_active ? "Active" : "Inactive" },
-            ].map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex flex-col gap-1 bg-card px-4 py-4">
-                <Icon className="size-3.5 text-muted-foreground" />
-                <p className="font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">{label}</p>
-                <p className="text-[14px] font-semibold text-foreground">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Meta */}
-          <div className="flex-1 space-y-4 px-6 py-5">
-            <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-              <Mail className="size-3.5 shrink-0" />
-              <span className="truncate">{user.email}</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-              <Calendar className="size-3.5 shrink-0" />
-              <span>Joined {new Date(user.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
-            </div>
-            {user.current_plan_id && (
-              <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-                <CreditCard className="size-3.5 shrink-0" />
-                <span>Plan ID: {user.current_plan_id.slice(-8)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="border-t border-border p-5 space-y-2">
-            <button
-              onClick={() => setShowGrantPrompts(true)}
-              className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-2.5 text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <Zap className="size-4" />
-              Grant prompts
-            </button>
-            <button
-              onClick={() => setShowGrant(true)}
-              className="flex w-full items-center justify-center gap-2 border border-border bg-background px-4 py-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <CreditCard className="size-4" />
-              Grant credits
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {showGrant && (
-        <GrantCreditsModal user={user} token={token} onClose={() => setShowGrant(false)} />
-      )}
-      {showGrantPrompts && (
-        <GrantPromptsModal user={user} token={token} onClose={() => setShowGrantPrompts(false)} />
-      )}
-    </>
-  );
-}
-
 /* ── page ────────────────────────────────────────────────────────── */
 
 type Filter = "all" | "active" | "inactive" | "verified" | "paying";
@@ -453,7 +93,6 @@ export default function AdminUsersPage() {
   const token = session?.tokens.access_token ?? "";
   const [search, setSearch] = React.useState("");
   const [filter, setFilter] = React.useState<Filter>("all");
-  const [selected, setSelected] = React.useState<AdminUser | null>(null);
 
   const { data: users = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-users", token],
@@ -581,11 +220,12 @@ export default function AdminUsersPage() {
       {!isLoading && !isError && (
         <div className="border border-border">
           {/* Header row */}
-          <div className="grid grid-cols-[48px_1fr_1.2fr_90px_72px_72px_72px] items-center border-b border-border px-5 py-2.5 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
+          <div className="grid grid-cols-[48px_1fr_1.2fr_90px_80px_72px_72px_72px] items-center border-b border-border px-5 py-2.5 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
             <span />
             <span>Name</span>
             <span>Email</span>
             <span>Plan</span>
+            <span className="text-right">Credits</span>
             <span className="text-center">Verified</span>
             <span className="text-center">Active</span>
             <span className="text-right">Usage</span>
@@ -604,7 +244,7 @@ export default function AdminUsersPage() {
             <Link
               key={user.id}
               href={`/admin/dashboard/users/${user.id}`}
-              className="grid w-full grid-cols-[48px_1fr_1.2fr_90px_72px_72px_72px] items-center border-b border-border px-5 py-3.5 text-left last:border-b-0 transition-colors hover:bg-muted/10"
+              className="grid w-full grid-cols-[48px_1fr_1.2fr_90px_80px_72px_72px_72px] items-center border-b border-border px-5 py-3.5 text-left last:border-b-0 transition-colors hover:bg-muted/10"
             >
               <Avatar user={user} />
 
@@ -622,6 +262,10 @@ export default function AdminUsersPage() {
                 )}
               </span>
 
+              <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+                {safeNumber(user.credits_remaining).toLocaleString()}
+              </span>
+
               <span className="flex justify-center">
                 {user.is_verified
                   ? <CheckCircle className="size-4 text-emerald-500" />
@@ -636,7 +280,7 @@ export default function AdminUsersPage() {
 
               <span className="flex items-center justify-end gap-2">
                 <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                  {user.monthly_generation_count.toLocaleString()}
+                  {safeNumber(user.monthly_generation_count).toLocaleString()}
                 </span>
                 <ChevronRight className="size-3.5 text-muted-foreground/30" />
               </span>

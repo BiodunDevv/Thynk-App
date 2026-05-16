@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
-  MessageSquare,
   CreditCard,
   FileText,
   Package,
@@ -22,14 +21,13 @@ import {
 } from "lucide-react";
 
 import { ThynkLogo } from "@/components/brand/thynk-logo";
-import { useAdminSession, clearAdminSession } from "@/lib/auth/admin-session";
+import { useAdminSession, useAdminSessionState, clearAdminSession } from "@/lib/auth/admin-session";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/dashboard/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/admin/dashboard/users", label: "Users", icon: Users },
   { href: "/admin/dashboard/support", label: "Support", icon: HeadphonesIcon },
-  { href: "/admin/dashboard/chats", label: "Chats", icon: MessageSquare },
   { href: "/admin/dashboard/prompts", label: "Prompts", icon: Layers },
   { href: "/admin/dashboard/payments", label: "Payments", icon: CreditCard },
   { href: "/admin/dashboard/templates", label: "Templates", icon: FileText },
@@ -38,16 +36,16 @@ const NAV_ITEMS = [
 ];
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
-  const session = useAdminSession();
+  const { session, ready } = useAdminSessionState();
   const router = useRouter();
 
   React.useEffect(() => {
-    if (session === null) {
+    if (ready && session === null) {
       router.replace("/admin/sign-in");
     }
-  }, [session, router]);
+  }, [ready, session, router]);
 
-  if (!session) return null;
+  if (!ready || !session) return null;
   return <>{children}</>;
 }
 

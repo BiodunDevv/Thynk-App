@@ -5,7 +5,6 @@ import {
   Users,
   Zap,
   CreditCard,
-  MessageSquare,
   HeadphonesIcon,
   CheckCircle,
   TrendingUp,
@@ -176,9 +175,9 @@ export default function AdminDashboardPage() {
             <StatCard
               label="Reported chats"
               value={data.reported_request_chats}
-              icon={MessageSquare}
+              icon={AlertTriangle}
               accent={data.reported_request_chats > 0 ? "destructive" : "success"}
-              sub={data.reported_request_chats === 0 ? "Nothing flagged" : "Needs review"}
+              sub={data.reported_request_chats === 0 ? "Nothing flagged" : "Flagged content count"}
             />
             <StatCard
               label="Active users"
@@ -207,11 +206,8 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center gap-3 border border-destructive/30 bg-destructive/5 px-4 py-3">
                   <AlertTriangle className="size-4 shrink-0 text-destructive" />
                   <p className="text-[13px] text-muted-foreground">
-                    <span className="font-medium text-foreground">{data.reported_request_chats} reported chat{data.reported_request_chats !== 1 ? "s" : ""}</span> flagged for review.
+                    <span className="font-medium text-foreground">{data.reported_request_chats} flagged interaction{data.reported_request_chats !== 1 ? "s" : ""}</span> detected. Review downstream support, payment, and prompt activity where needed.
                   </p>
-                  <a href="/admin/dashboard/chats" className="ml-auto font-mono text-[10px] uppercase tracking-wider text-destructive hover:opacity-70">
-                    View →
-                  </a>
                 </div>
               )}
             </div>
