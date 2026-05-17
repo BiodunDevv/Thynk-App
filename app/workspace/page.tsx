@@ -153,6 +153,286 @@ function normalizeRenderedText(value: string) {
     .trim();
 }
 
+function parseStructuredAnswerSections(content: string) {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  const answerMatch = normalized.match(/## Answer\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const whyMatch = normalized.match(/## Why\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const nextStepMatch = normalized.match(/## Suggested next step\s*([\s\S]*?)(?=\n## |\s*$)/i);
+
+  return {
+    answer: normalizeRenderedText(answerMatch?.[1] ?? normalized),
+    why: normalizeRenderedText(whyMatch?.[1] ?? ""),
+    nextStep: normalizeRenderedText(nextStepMatch?.[1] ?? ""),
+  };
+}
+
+type ContentSegment =
+  | { type: "text"; value: string }
+  | { type: "code"; value: string; language: string };
+
+function looksLikeCodeLine(line: string) {
+  const value = line.trim();
+  if (!value) return false;
+
+  return (
+    /^<!DOCTYPE/i.test(value)
+    || /^<html[\s>]/i.test(value)
+    || /^<\/?[a-z][\w:-]*(\s|>|$)/i.test(value)
+    || /^(import|export|const|let|var|function|class|interface|type)\b/.test(value)
+    || /^(body|html|nav|main|section|article|header|footer|form|button|input|textarea|\.|#)[\w\s\-.:#[\]="'(),>+~]*\{/.test(value)
+    || /^@[a-z-]+/i.test(value)
+    || /=>\s*\{?$/.test(value)
+  );
+}
+
+function inferCodeLanguage(value: string) {
+  const trimmed = value.trim();
+  if (/^<!DOCTYPE/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) return "html";
+  if (/(^|\n)\s*(body|html|nav|main|section|article|header|footer|form|button|input|textarea)[^{\n]*\{/.test(trimmed)) return "css";
+  if (/(^|\n)\s*import\s.+from\s+["']/.test(trimmed) || /:\s*(string|number|boolean|React\.)/.test(trimmed)) return "tsx";
+  if (/(^|\n)\s*(const|let|var|function)\s+/.test(trimmed) || /=>/.test(trimmed)) return "javascript";
+  return "code";
+}
+
+function splitInlineCodeTail(content: string): ContentSegment[] | null {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return null;
+
+  const lines = normalized.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const remaining = lines.slice(index);
+    if (remaining.length < 4) continue;
+    if (!looksLikeCodeLine(remaining[0])) continue;
+
+    const codeBlock = remaining.join("\n").trim();
+    const codeIndicators = (codeBlock.match(/[{};]/g) ?? []).length;
+    const markupIndicators = (codeBlock.match(/<\/?[a-z]/gi) ?? []).length;
+    const signalLines = remaining.filter((line) => looksLikeCodeLine(line)).length;
+    if (signalLines < 3 || (codeIndicators < 4 && markupIndicators < 4)) continue;
+
+    const intro = lines.slice(0, index).join("\n").trim();
+    return [
+      ...(intro ? [{ type: "text", value: intro } satisfies ContentSegment] : []),
+      { type: "code", value: codeBlock, language: inferCodeLanguage(codeBlock) },
+    ];
+  }
+
+  return null;
+}
+
+function splitContentSegments(content: string): ContentSegment[] {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return [];
+
+  const segments: ContentSegment[] = [];
+  const codeBlockPattern = /```([\w-]*)\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockPattern.exec(normalized)) !== null) {
+    const preceding = normalized.slice(lastIndex, match.index).trim();
+    if (preceding) {
+      segments.push({ type: "text", value: preceding });
+    }
+    segments.push({
+      type: "code",
+      language: (match[1] || "").trim(),
+      value: match[2].replace(/\n$/, ""),
+    });
+    lastIndex = match.index + match[0].length;
+  }
+
+  const trailing = normalized.slice(lastIndex).trim();
+  if (trailing) {
+    segments.push({ type: "text", value: trailing });
+  }
+
+  if (segments.length === 1 && segments[0]?.type === "text") {
+    return splitInlineCodeTail(segments[0].value) ?? segments;
+  }
+
+  if (segments.length === 0) {
+    return splitInlineCodeTail(normalized) ?? segments;
+  }
+
+  return segments;
+}
+
+function renderRichTextBlock(content: string) {
+  const lines = normalizeRenderedText(content).split("\n");
+  const blocks: React.ReactNode[] = [];
+  let currentParagraph: string[] = [];
+  let currentList: string[] = [];
+
+  const flushParagraph = () => {
+    if (!currentParagraph.length) return;
+    blocks.push(
+      <p key={`p-${blocks.length}`} className="text-[14px] leading-relaxed text-foreground">
+        {currentParagraph.join(" ")}
+      </p>,
+    );
+    currentParagraph = [];
+  };
+
+  const flushList = () => {
+    if (!currentList.length) return;
+    blocks.push(
+      <ul key={`l-${blocks.length}`} className="space-y-2">
+        {currentList.map((item, index) => (
+          <li key={index} className="flex items-start gap-2 text-[14px] leading-relaxed text-foreground">
+            <span className="mt-[7px] size-1 shrink-0 bg-primary/70" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>,
+    );
+    currentList = [];
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    const bulletMatch = line.match(/^[-•]\s+(.*)$/);
+    const numberedMatch = line.match(/^\d+\.\s+(.*)$/);
+    if (bulletMatch || numberedMatch) {
+      flushParagraph();
+      currentList.push((bulletMatch?.[1] ?? numberedMatch?.[1] ?? "").trim());
+      continue;
+    }
+
+    if (currentList.length) {
+      flushList();
+    }
+    currentParagraph.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+
+  return <div className="space-y-3">{blocks}</div>;
+}
+
+function renderMessageContent(content: string) {
+  const segments = splitContentSegments(content);
+  if (!segments.length) {
+    return renderRichTextBlock(content);
+  }
+
+  return (
+    <div className="space-y-4">
+      {segments.map((segment, index) => {
+        if (segment.type === "code") {
+          return <CodeBlock key={index} code={segment.value} language={segment.language} />;
+        }
+
+        return <div key={index}>{renderRichTextBlock(segment.value)}</div>;
+      })}
+    </div>
+  );
+}
+
+function MessageCopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1 border border-border bg-card px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+      title="Copy message"
+    >
+      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+function getPromptVersionLabel(
+  message: RequestChatRecord["messages"][number] | undefined,
+  version: number,
+  totalVersions: number,
+) {
+  const variationHint = typeof message?.metadata?.variation_hint === "string"
+    ? message.metadata.variation_hint.trim()
+    : "";
+
+  if (variationHint) {
+    return totalVersions > 1
+      ? `Prompt ${version} · ${variationHint}`
+      : variationHint;
+  }
+
+  if (totalVersions <= 1) return "Current prompt";
+  if (version === totalVersions) return `Prompt ${version} · Latest`;
+  return `Prompt ${version}`;
+}
+
+function CodeBlock({ code, language }: { code: string; language?: string }) {
+  const [copied, setCopied] = React.useState(false);
+  const lines = React.useMemo(() => code.split("\n"), [code]);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <div className="overflow-hidden border border-border bg-card shadow-sm">
+      <div className="flex items-center justify-between border-b border-border bg-muted/45 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-muted-foreground/25" />
+            <span className="size-2 rounded-full bg-muted-foreground/25" />
+            <span className="size-2 rounded-full bg-muted-foreground/25" />
+          </div>
+          <span className="truncate font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
+            {language || "Code"}
+          </span>
+        </div>
+
+        <button
+          onClick={handleCopy}
+          className="flex shrink-0 items-center gap-1 border border-border bg-card px-2 py-1 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+          title="Copy code"
+        >
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+
+      <div className="overflow-x-auto bg-background">
+        <div className="grid min-w-full grid-cols-[auto,1fr]">
+          <div className="select-none border-r border-border bg-muted/25 px-3 py-3 text-right font-mono text-[11px] leading-6 text-muted-foreground/55">
+            {lines.map((_, index) => (
+              <div key={index}>{index + 1}</div>
+            ))}
+          </div>
+          <pre className="overflow-x-auto px-4 py-3 font-mono text-[12px] leading-6 text-foreground sm:text-[13px]">
+            <code>
+              {lines.map((line, index) => (
+                <div key={index} className="min-h-6 whitespace-pre">
+                  {line || " "}
+                </div>
+              ))}
+            </code>
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function getDeepThinkingPreference(messages: RequestChatRecord["messages"] | undefined) {
   if (!messages) return false;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -768,9 +1048,12 @@ function UserBlock({ content, time, imageUrls }: { content: string; time: string
 
   return (
     <div className="py-3">
-      <div className="mb-1.5 flex items-center gap-2">
-        <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">You</span>
-        <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">You</span>
+          <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
+        </div>
+        <MessageCopyButton value={content} />
       </div>
       <div className="border-l-2 border-border pl-4">
         {imageUrls && imageUrls.length > 0 && (
@@ -791,7 +1074,7 @@ function UserBlock({ content, time, imageUrls }: { content: string; time: string
             ))}
           </div>
         )}
-        <p className="text-[14px] leading-relaxed text-foreground/80">{content}</p>
+        {renderMessageContent(content)}
       </div>
 
       {lightboxIndex !== null && imageUrls && (
@@ -820,28 +1103,62 @@ function AiBlock({
     () => getStructuredClarification(metadata, content),
     [content, metadata],
   );
+  const followUpSections = React.useMemo(
+    () => (metadata?.type === "follow_up_answer" ? parseStructuredAnswerSections(content) : null),
+    [content, metadata],
+  );
 
   return (
     <div className="py-3">
-      <div className="mb-2 flex items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          <Zap className="size-2.5 text-primary" />
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary/70">Thynk</span>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <Zap className="size-2.5 text-primary" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary/70">Thynk</span>
+          </div>
+          <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
         </div>
-        <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
+        <MessageCopyButton value={content} />
       </div>
 
       {structured?.questions?.length ? (
         <div className="space-y-5">
-          {structured.questions.map((q, i) => (
-            <div key={i}>
-              <p className="mb-2.5 text-[14px] font-medium text-foreground">{q.question}</p>
-              <AiQuestionBlock question={q} onAnswer={onOptionSelect} />
+          {structured.questions[0] && (
+            <div>
+              <p className="mb-2.5 text-[14px] font-medium text-foreground">{structured.questions[0].question}</p>
+              <AiQuestionBlock question={structured.questions[0]} onAnswer={onOptionSelect} />
             </div>
-          ))}
+          )}
+        </div>
+      ) : followUpSections ? (
+        <div className="space-y-4 border-l-2 border-border pl-4">
+          <div>
+            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
+              Prompt support
+            </p>
+            {renderMessageContent(followUpSections.answer)}
+          </div>
+          {followUpSections.why && (
+            <div className="border-t border-border pt-3">
+              <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                Why
+              </p>
+              {renderMessageContent(followUpSections.why)}
+            </div>
+          )}
+          {followUpSections.nextStep && (
+            <div className="border-t border-border pt-3">
+              <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                Suggested next step
+              </p>
+              {renderMessageContent(followUpSections.nextStep)}
+            </div>
+          )}
         </div>
       ) : (
-        <p className="text-[14px] leading-relaxed text-foreground">{content}</p>
+        <div className="border-l-2 border-border pl-4">
+          {renderMessageContent(content)}
+        </div>
       )}
     </div>
   );
@@ -1518,6 +1835,7 @@ export default function WorkspacePage() {
   const [isUploading, setIsUploading] = React.useState(false);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const finalPromptRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const dragCounterRef = React.useRef(0);
@@ -1773,6 +2091,22 @@ export default function WorkspacePage() {
     setDeepThinkingEnabled((current) => !current);
   }
 
+  function scrollToFinalPrompt() {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        finalPromptRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+  }
+
+  function handleOpenPrompt(version?: number) {
+    if (!hasFinalPrompt) return;
+    if (typeof version === "number") {
+      setViewingVersion(version);
+    }
+    scrollToFinalPrompt();
+  }
+
   function handleSend() {
     const content = inputValue.trim();
     if (!content || isThinking || isUploading) return;
@@ -1943,6 +2277,49 @@ export default function WorkspacePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {hasFinalPrompt && (
+                    finalMessages.length > 1 ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                            <Layers className="size-3.5" />
+                            {effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}
+                            <ChevronDown className="size-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          {finalMessages.map((message, index) => {
+                            const version = index + 1;
+                            const isCurrent = version === effectiveViewingVersion;
+                            return (
+                              <DropdownMenuItem
+                                key={message.id}
+                                onClick={() => handleOpenPrompt(version)}
+                                className="flex items-center justify-between gap-3"
+                              >
+                                <span className="truncate">
+                                  {getPromptVersionLabel(message, version, finalMessages.length)}
+                                </span>
+                                {isCurrent && (
+                                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
+                                    Open
+                                  </span>
+                                )}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <button
+                        onClick={() => handleOpenPrompt()}
+                        className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Layers className="size-3.5" />
+                        View prompt
+                      </button>
+                    )
+                  )}
                   <DeepThinkingToggle
                     enabled={effectiveDeepThinking}
                     canUse={canUseDeepThinking}
@@ -1993,7 +2370,7 @@ export default function WorkspacePage() {
 
                     if (isFinal) {
                       return (
-                        <div key={msg.id} className="py-6">
+                        <div key={msg.id} ref={msg === finalMessages[effectiveViewingVersion - 1] ? finalPromptRef : undefined} className="py-6">
                           {/* Section header */}
                           <div className="mb-4 flex items-center gap-3">
                             <div className="h-px flex-1 bg-border" />

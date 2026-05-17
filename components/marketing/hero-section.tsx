@@ -720,7 +720,7 @@ export function HeroSection() {
 
             {/* Trust strip */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-              {["Free account", "5 generations/week", "No credit card", "Image context support"].map((label) => (
+              {["5 generations/week", "No credit card", "Image context support"].map((label) => (
                 <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <svg className="size-3 shrink-0 text-primary" viewBox="0 0 12 12" fill="none" aria-hidden>
                     <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
