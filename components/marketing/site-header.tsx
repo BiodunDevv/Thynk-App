@@ -75,12 +75,16 @@ function InlineThemeToggle() {
             onClick={() => setTheme(value)}
             className={[
               "flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer",
-              active === value ? "text-foreground font-medium" : "text-muted-foreground",
+              active === value
+                ? "text-foreground font-medium"
+                : "text-muted-foreground",
             ].join(" ")}
           >
             <Icon className="size-3.5" />
             {label}
-            {active === value && <ChevronRight className="ml-auto size-3 opacity-50" />}
+            {active === value && (
+              <ChevronRight className="ml-auto size-3 opacity-50" />
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -103,20 +107,28 @@ function UsagePill({
   const pct = freeLimit > 0 ? Math.min((used / freeLimit) * 100, 100) : 0;
   const remaining = Math.max(subscriptionGenerationsRemaining, 0);
   const isNear = pct >= 80;
-  const isOut  = pct >= 100;
+  const isOut = pct >= 100;
 
   /* SVG arc */
   const r = 8;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
 
-  const accentClass = isOut ? "stroke-destructive" : isNear ? "stroke-orange-500" : "stroke-primary";
-  const textClass   = isOut ? "text-destructive"   : isNear ? "text-orange-500"   : "text-foreground";
+  const accentClass = isOut
+    ? "stroke-destructive"
+    : isNear
+      ? "stroke-orange-500"
+      : "stroke-primary";
+  const textClass = isOut
+    ? "text-destructive"
+    : isNear
+      ? "text-orange-500"
+      : "text-foreground";
   const borderClass = isOut
     ? "border-destructive/30 hover:border-destructive/60"
     : isNear
-    ? "border-orange-500/30 hover:border-orange-500/60"
-    : "border-border hover:border-ring";
+      ? "border-orange-500/30 hover:border-orange-500/60"
+      : "border-border hover:border-ring";
 
   if (!isFree) {
     return (
@@ -131,7 +143,7 @@ function UsagePill({
 
         <span className="flex flex-col leading-none">
           <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-            Current plan
+            Premium
           </span>
           <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
             {subscriptionGenerationsRemaining.toLocaleString()}
@@ -153,18 +165,43 @@ function UsagePill({
     >
       {/* Arc dial */}
       <span className="relative shrink-0">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="-rotate-90">
-          <circle cx="10" cy="10" r={r} strokeWidth="2.2" className="stroke-muted" />
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 20 20"
+          fill="none"
+          className="-rotate-90"
+        >
           <circle
-            cx="10" cy="10" r={r}
+            cx="10"
+            cy="10"
+            r={r}
+            strokeWidth="2.2"
+            className="stroke-muted"
+          />
+          <circle
+            cx="10"
+            cy="10"
+            r={r}
             strokeWidth="2.2"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ - dash}`}
             className={accentClass}
-            style={{ transition: "stroke-dasharray 0.5s cubic-bezier(.4,0,.2,1)" }}
+            style={{
+              transition: "stroke-dasharray 0.5s cubic-bezier(.4,0,.2,1)",
+            }}
           />
         </svg>
-        <Zap className={["absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2", isOut ? "text-destructive" : isNear ? "text-orange-500" : "text-primary"].join(" ")} />
+        <Zap
+          className={[
+            "absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2",
+            isOut
+              ? "text-destructive"
+              : isNear
+                ? "text-orange-500"
+                : "text-primary",
+          ].join(" ")}
+        />
       </span>
 
       {/* Numbers */}
@@ -172,15 +209,29 @@ function UsagePill({
         <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
           {isFree ? "Free" : "Pro"}&nbsp;·&nbsp;gen
         </span>
-        <span className={["font-mono text-[11px] font-semibold tabular-nums", textClass].join(" ")}>
+        <span
+          className={[
+            "font-mono text-[11px] font-semibold tabular-nums",
+            textClass,
+          ].join(" ")}
+        >
           {remaining}
-          <span className="font-normal text-muted-foreground/50">/{freeLimit}</span>
+          <span className="font-normal text-muted-foreground/50">
+            /{freeLimit}
+          </span>
         </span>
       </span>
 
       {/* Upgrade arrow — free only */}
       {isFree && (
-        <ArrowUpRight className={["size-3 transition-colors", isOut || isNear ? "text-primary" : "text-muted-foreground/40 group-hover:text-primary"].join(" ")} />
+        <ArrowUpRight
+          className={[
+            "size-3 transition-colors",
+            isOut || isNear
+              ? "text-primary"
+              : "text-muted-foreground/40 group-hover:text-primary",
+          ].join(" ")}
+        />
       )}
     </Link>
   );
@@ -290,12 +341,14 @@ export function SiteHeader() {
 
   const user = userQuery.data;
   const sessionPlanId = session?.plan?.plan_id ?? null;
-  const plan = plansQuery.data?.find((p) => p.id === user?.current_plan_id)
-    ?? plansQuery.data?.find((p) => p.id === sessionPlanId)
-    ?? plansQuery.data?.find((p) => p.slug === "free");
+  const plan =
+    plansQuery.data?.find((p) => p.id === user?.current_plan_id) ??
+    plansQuery.data?.find((p) => p.id === sessionPlanId) ??
+    plansQuery.data?.find((p) => p.slug === "free");
 
   const planSlug = plan?.slug ?? "free";
-  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? 0;
+  const subscriptionGenerationsRemaining =
+    user?.subscription_generations_remaining ?? 0;
   const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
   const totalPointsRemaining = user?.total_points_remaining ?? 0;
   const used = user?.monthly_generation_count ?? 0;
@@ -320,9 +373,11 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-
         {/* Logo */}
-        <Link href="/" className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link
+          href="/"
+          className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <div className="flex h-10 items-center border border-border bg-card px-3.5 shadow-sm">
             <ThynkLogo size="sm" />
           </div>
@@ -348,18 +403,18 @@ export function SiteHeader() {
 
         {/* Right cluster */}
         <div className="flex items-center gap-2">
-
           {/* Usage pill — always visible for authenticated users */}
           {session && !adminSession && user && plan && (
             <UsagePill
               planSlug={planSlug}
-              subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+              subscriptionGenerationsRemaining={
+                subscriptionGenerationsRemaining
+              }
             />
           )}
 
           {/* Actions pill */}
           <div className="flex h-10 shrink-0 items-stretch border border-border bg-card shadow-sm">
-
             {/* Theme toggle */}
             <div className="border-r border-border">
               <InlineThemeToggle />
@@ -373,7 +428,9 @@ export function SiteHeader() {
                 className="flex h-full items-center gap-1.5 border-r border-border px-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Heart className="size-3.5" />
-                <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] sm:inline">Saved</span>
+                <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] sm:inline">
+                  Saved
+                </span>
               </button>
             )}
 
@@ -392,10 +449,14 @@ export function SiteHeader() {
                   </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-64 border-border p-0">
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64 border-border p-0"
+                >
                   <div className="border-b border-border px-4 py-3">
                     <p className="text-[13px] font-medium text-foreground truncate">
-                      {session.user.full_name ?? session.user.email.split("@")[0]}
+                      {session.user.full_name ??
+                        session.user.email.split("@")[0]}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
                       {session.user.email}
@@ -409,19 +470,42 @@ export function SiteHeader() {
                         <div className="flex items-center gap-1.5">
                           <Zap className="size-3 text-primary" />
                           <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                            {planSlug === "free" ? "Generations" : "Current plan"}
+                            {planSlug === "free"
+                              ? "Generations"
+                              : "Current plan"}
                           </span>
                         </div>
-                        <span className={["font-mono text-[11px] font-semibold tabular-nums", isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground"].join(" ")}>
-                          {planSlug === "free" ? Math.max(limit - used, 0) : subscriptionGenerationsRemaining}
-                          <span className="font-normal text-muted-foreground/50"> left</span>
+                        <span
+                          className={[
+                            "font-mono text-[11px] font-semibold tabular-nums",
+                            isAtLimit
+                              ? "text-destructive"
+                              : isNearLimit
+                                ? "text-orange-500"
+                                : "text-foreground",
+                          ].join(" ")}
+                        >
+                          {planSlug === "free"
+                            ? Math.max(limit - used, 0)
+                            : subscriptionGenerationsRemaining}
+                          <span className="font-normal text-muted-foreground/50">
+                            {" "}
+                            left
+                          </span>
                         </span>
                       </div>
 
                       {/* Progress bar */}
                       <div className="h-1 w-full overflow-hidden bg-muted">
                         <div
-                          className={["h-full transition-all duration-500", isAtLimit ? "bg-destructive" : isNearLimit ? "bg-orange-500" : "bg-primary"].join(" ")}
+                          className={[
+                            "h-full transition-all duration-500",
+                            isAtLimit
+                              ? "bg-destructive"
+                              : isNearLimit
+                                ? "bg-orange-500"
+                                : "bg-primary",
+                          ].join(" ")}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -429,10 +513,16 @@ export function SiteHeader() {
                       {/* Sub-row */}
                       <div className="mt-1.5 flex items-center justify-between">
                         <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-                          {planSlug === "free" ? "Free · resets weekly" : planSlug.includes("monthly") ? "Current plan · monthly" : "Current plan · yearly"}
+                          {planSlug === "free"
+                            ? "Free · resets weekly"
+                            : planSlug.includes("monthly")
+                              ? "Current plan · monthly"
+                              : "Current plan · yearly"}
                         </span>
                         <span className="font-mono text-[9px] tabular-nums text-muted-foreground/50">
-                          {planSlug === "free" ? `${used}/${limit} used` : `${subscriptionGenerationsRemaining.toLocaleString()} left`}
+                          {planSlug === "free"
+                            ? `${used}/${limit} used`
+                            : `${subscriptionGenerationsRemaining.toLocaleString()} left`}
                         </span>
                       </div>
 
@@ -466,10 +556,17 @@ export function SiteHeader() {
                       {planSlug === "free" && (
                         <Link
                           href="/pricing"
-                          className={["mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90", isAtLimit || isNearLimit ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-muted-foreground hover:text-foreground"].join(" ")}
+                          className={[
+                            "mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90",
+                            isAtLimit || isNearLimit
+                              ? "bg-primary text-primary-foreground"
+                              : "border border-border bg-muted text-muted-foreground hover:text-foreground",
+                          ].join(" ")}
                         >
                           <Zap className="size-3" />
-                          {isAtLimit ? "Limit reached — Upgrade now" : "Upgrade to Pro"}
+                          {isAtLimit
+                            ? "Limit reached — Upgrade now"
+                            : "Upgrade to Pro"}
                           <ArrowUpRight className="size-3" />
                         </Link>
                       )}
@@ -478,13 +575,19 @@ export function SiteHeader() {
 
                   <div className="py-1">
                     <DropdownMenuItem asChild>
-                      <Link href="/workspace" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
+                      <Link
+                        href="/workspace"
+                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
+                      >
                         <LayoutDashboard className="size-3.5 text-muted-foreground" />
                         Workspace
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/settings?tab=notifications" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
+                      <Link
+                        href="/settings?tab=notifications"
+                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
+                      >
                         <Bell className="size-3.5 text-muted-foreground" />
                         Notifications
                         {unreadNotifications > 0 && (
@@ -495,7 +598,10 @@ export function SiteHeader() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
+                      <Link
+                        href="/settings"
+                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
+                      >
                         <Settings className="size-3.5 text-muted-foreground" />
                         Settings
                       </Link>
@@ -515,7 +621,6 @@ export function SiteHeader() {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-
             ) : (
               /* ── Signed out ── */
               <>
@@ -534,9 +639,7 @@ export function SiteHeader() {
               </>
             )}
           </div>
-
         </div>
-
       </div>
 
       {/* Saved prompts slide-over */}

@@ -1362,14 +1362,14 @@ function DeepThinkingToggle({
     <button
       type="button"
       onClick={onToggle}
-      className={`flex items-center gap-2 border transition-colors ${
+      className={`flex min-w-0 items-center gap-2 border transition-colors ${
         enabled
           ? "border-primary/30 bg-primary/10 text-primary"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
       } ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}
     >
       <Brain className="size-3.5" />
-      <div className="text-left">
+      <div className="min-w-0 text-left">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em]">
           Deep thinking
         </p>
@@ -1380,8 +1380,9 @@ function DeepThinkingToggle({
         )}
       </div>
       {enabled && (
-        <span className="border border-primary/20 bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
-          On
+        <span className="ml-auto border border-primary/20 bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
+          <span className="hidden sm:inline">On</span>
+          <span className="sm:hidden">Live</span>
         </span>
       )}
     </button>
@@ -2162,7 +2163,9 @@ export default function WorkspacePage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <SiteHeader />
+      <div className={activeChatId ? "hidden md:block" : ""}>
+        <SiteHeader />
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Desktop chat list */}
@@ -2245,104 +2248,209 @@ export default function WorkspacePage() {
             /* ── Active workspace ── */
             <>
               {/* Top bar */}
-              <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setActiveChatId(null);
-                      setDeepThinkingEnabled(false);
-                      setDeepThinkingTouched(false);
-                      window.history.replaceState(null, "", "/workspace");
-                    }}
-                    className="flex size-7 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <ArrowLeft className="size-4" />
-                  </button>
-                  <div>
-                    <h1 className="text-[13px] font-semibold leading-none text-foreground">{activeChat?.title}</h1>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                        {activeChat?.category}
-                      </span>
-                      {hasFinalPrompt && (
-                        <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
-                          <Layers className="size-2.5" />
-                          {finalMessages.length} version{finalMessages.length !== 1 ? "s" : ""}
+              <div className="border-b border-border bg-card px-4 py-3">
+                <div className="hidden items-center justify-between gap-4 md:flex">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setActiveChatId(null);
+                        setDeepThinkingEnabled(false);
+                        setDeepThinkingTouched(false);
+                        window.history.replaceState(null, "", "/workspace");
+                      }}
+                      className="flex size-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <ArrowLeft className="size-4" />
+                    </button>
+                    <div className="min-w-0">
+                      <h1 className="truncate text-[13px] font-semibold leading-none text-foreground">{activeChat?.title}</h1>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                          {activeChat?.category}
                         </span>
-                      )}
-                      {activeChat?.is_favorite && (
-                        <Heart className="size-2.5 fill-rose-500 text-rose-500" />
-                      )}
+                        {hasFinalPrompt && (
+                          <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
+                            <Layers className="size-2.5" />
+                            {finalMessages.length} version{finalMessages.length !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {activeChat?.is_favorite && (
+                          <Heart className="size-2.5 fill-rose-500 text-rose-500" />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {hasFinalPrompt && (
-                    finalMessages.length > 1 ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                            <Layers className="size-3.5" />
-                            {effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}
-                            <ChevronDown className="size-3" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          {finalMessages.map((message, index) => {
-                            const version = index + 1;
-                            const isCurrent = version === effectiveViewingVersion;
-                            return (
-                              <DropdownMenuItem
-                                key={message.id}
-                                onClick={() => handleOpenPrompt(version)}
-                                className="flex items-center justify-between gap-3"
-                              >
-                                <span className="truncate">
-                                  {getPromptVersionLabel(message, version, finalMessages.length)}
-                                </span>
-                                {isCurrent && (
-                                  <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
-                                    Open
+                  <div className="flex items-center gap-2">
+                    {hasFinalPrompt && (
+                      finalMessages.length > 1 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                              <Layers className="size-3.5" />
+                              {effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}
+                              <ChevronDown className="size-3" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            {finalMessages.map((message, index) => {
+                              const version = index + 1;
+                              const isCurrent = version === effectiveViewingVersion;
+                              return (
+                                <DropdownMenuItem
+                                  key={message.id}
+                                  onClick={() => handleOpenPrompt(version)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate">
+                                    {getPromptVersionLabel(message, version, finalMessages.length)}
                                   </span>
-                                )}
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                                  {isCurrent && (
+                                    <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
+                                      Open
+                                    </span>
+                                  )}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenPrompt()}
+                          className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Layers className="size-3.5" />
+                          View prompt
+                        </button>
+                      )
+                    )}
+                    <DeepThinkingToggle
+                      enabled={effectiveDeepThinking}
+                      canUse={canUseDeepThinking}
+                      onToggle={handleToggleDeepThinking}
+                      compact
+                    />
+                    {showGenerateButton && !hasFinalPrompt && (
+                      <button
+                        disabled={generateFinalMutation.isPending || isThinking}
+                        onClick={() => generateFinalMutation.mutate()}
+                        className="flex items-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                      >
+                        {generateFinalMutation.isPending
+                          ? <><RefreshCw className="size-3.5 animate-spin" />Crystallising…</>
+                          : <>Generate Prompt</>}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3 md:hidden">
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => {
+                        setActiveChatId(null);
+                        setDeepThinkingEnabled(false);
+                        setDeepThinkingTouched(false);
+                        window.history.replaceState(null, "", "/workspace");
+                      }}
+                      className="mt-0.5 flex size-8 shrink-0 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <ArrowLeft className="size-4" />
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <h1 className="line-clamp-2 text-[20px] font-semibold leading-tight text-foreground">
+                        {activeChat?.title}
+                      </h1>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                          {activeChat?.category}
+                        </span>
+                        {hasFinalPrompt && (
+                          <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
+                            <Layers className="size-3" />
+                            {finalMessages.length} version{finalMessages.length !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {activeChat?.is_favorite && (
+                          <Heart className="size-3 fill-rose-500 text-rose-500" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {hasFinalPrompt ? (
+                      finalMessages.length > 1 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="col-span-2 flex min-w-0 items-center justify-between gap-2 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <Layers className="size-3.5 shrink-0" />
+                                <span className="truncate">{effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}</span>
+                              </span>
+                              <ChevronDown className="size-3 shrink-0" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            {finalMessages.map((message, index) => {
+                              const version = index + 1;
+                              const isCurrent = version === effectiveViewingVersion;
+                              return (
+                                <DropdownMenuItem
+                                  key={message.id}
+                                  onClick={() => handleOpenPrompt(version)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate">
+                                    {getPromptVersionLabel(message, version, finalMessages.length)}
+                                  </span>
+                                  {isCurrent && (
+                                    <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
+                                      Open
+                                    </span>
+                                  )}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenPrompt()}
+                          className="col-span-2 flex items-center gap-1.5 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Layers className="size-3.5 shrink-0" />
+                          View prompt
+                        </button>
+                      )
                     ) : (
                       <button
-                        onClick={() => handleOpenPrompt()}
-                        className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        onClick={() => setShowChatList(true)}
+                        className="flex items-center gap-1.5 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
-                        <Layers className="size-3.5" />
-                        View prompt
+                        <Clock className="size-3.5 shrink-0" />
+                        History
                       </button>
-                    )
-                  )}
+                    )}
+                    {showGenerateButton && !hasFinalPrompt && (
+                      <button
+                        disabled={generateFinalMutation.isPending || isThinking}
+                        onClick={() => generateFinalMutation.mutate()}
+                        className="flex items-center justify-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                      >
+                        {generateFinalMutation.isPending
+                          ? <><RefreshCw className="size-3.5 animate-spin" />Crystallising…</>
+                          : <>Generate</>}
+                      </button>
+                    )}
+                  </div>
+
                   <DeepThinkingToggle
                     enabled={effectiveDeepThinking}
                     canUse={canUseDeepThinking}
                     onToggle={handleToggleDeepThinking}
                     compact
                   />
-                  <button
-                    onClick={() => setShowChatList(true)}
-                    className="flex size-8 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
-                  >
-                    <Clock className="size-3.5" />
-                  </button>
-                  {showGenerateButton && !hasFinalPrompt && (
-                    <button
-                      disabled={generateFinalMutation.isPending || isThinking}
-                      onClick={() => generateFinalMutation.mutate()}
-                      className="flex items-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                    >
-                      {generateFinalMutation.isPending
-                        ? <><RefreshCw className="size-3.5 animate-spin" />Crystallising…</>
-                        : <>Generate Prompt</>}
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -2361,7 +2469,7 @@ export default function WorkspacePage() {
               )}
 
               {/* Document-style conversation area */}
-              <div className="flex-1 overflow-y-auto px-5 py-2 md:px-10">
+              <div className="flex-1 overflow-y-auto px-4 py-2 md:px-10">
                 <div className="mx-auto max-w-[760px]">
                   {/* Dividers between message blocks */}
                   {displayMessages.map((msg, idx) => {
@@ -2433,7 +2541,7 @@ export default function WorkspacePage() {
               </div>
 
               {/* Input bar */}
-              <div className="border-t border-border bg-card px-5 py-3 md:px-10">
+              <div className="border-t border-border bg-card px-4 py-3 md:px-10">
                 <div className="mx-auto max-w-[760px]">
                   {/* Image previews */}
                   {attachedImages.length > 0 && (

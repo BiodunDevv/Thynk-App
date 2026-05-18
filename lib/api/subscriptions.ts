@@ -13,10 +13,11 @@ export type SubscriptionRecord = {
   created_at: string | null;
 };
 
-export async function getMySubscription(accessToken: string) {
-  return apiDataRequest<SubscriptionRecord | null>("/subscriptions/current", {
+export async function getMySubscription(accessToken: string): Promise<SubscriptionRecord | null> {
+  const result = await apiDataRequest<SubscriptionRecord | null>("/subscriptions/current", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
   });
+  return result ?? null;
 }

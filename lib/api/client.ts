@@ -15,6 +15,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code?: string,
     public readonly details?: unknown,
+    public readonly fieldErrors?: { field: string; message: string }[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -174,7 +175,7 @@ export async function apiRequest<T>(
 
   const body = await response.json().catch(() => null) as {
     message?: string;
-    error?: { code?: string; details?: unknown };
+    error?: { code?: string; details?: unknown; field_errors?: { field: string; message: string }[] };
   } | null;
 
   if (!response.ok) {
@@ -183,6 +184,7 @@ export async function apiRequest<T>(
       response.status,
       body?.error?.code,
       body?.error?.details,
+      body?.error?.field_errors,
     );
   }
 
