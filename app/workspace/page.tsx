@@ -8,7 +8,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, History,
   ArrowRight, Zap, Clock, ImagePlus,
   MessageSquare, ArrowLeft, X, Search, Plus,
-  Heart, Check, CornerDownRight, BookOpen, Layers, Trash2, Brain,
+  Heart, Check, CornerDownRight, BookOpen, Layers, Trash2, Brain, Maximize2, Minimize2,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -1390,10 +1390,26 @@ function DeepThinkingToggle({
 }
 
 function ChatEntryHero({
-  onCreated, promptsLeft, limit, planSlug, onShowTemplates, initialPrompt, onPromptChange, deepThinkingEnabled, onToggleDeepThinking,
+  onCreated,
+  promptsLeft,
+  limit,
+  planSlug,
+  subscriptionGenerationsRemaining,
+  grantedCreditsRemaining,
+  totalPointsRemaining,
+  onShowTemplates,
+  initialPrompt,
+  onPromptChange,
+  deepThinkingEnabled,
+  onToggleDeepThinking,
 }: {
   onCreated: (chat: RequestChatRecord) => void;
-  promptsLeft: number; limit: number; planSlug: string;
+  promptsLeft: number;
+  limit: number;
+  planSlug: string;
+  subscriptionGenerationsRemaining: number;
+  grantedCreditsRemaining: number;
+  totalPointsRemaining: number;
   onShowTemplates: () => void;
   initialPrompt: string;
   onPromptChange: (v: string) => void;
@@ -1404,6 +1420,7 @@ function ChatEntryHero({
   const [entryImages, setEntryImages] = React.useState<{ file: File; preview: string }[]>([]);
   const [entryUploading, setEntryUploading] = React.useState(false);
   const [entryDragging, setEntryDragging] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const entryFileRef = React.useRef<HTMLInputElement>(null);
   const entryDragCounter = React.useRef(0);
@@ -1499,7 +1516,7 @@ function ChatEntryHero({
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-4 py-12">
+    <div className="flex h-full flex-col items-center justify-center px-4 py-8 md:px-6 md:py-12">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -1511,24 +1528,55 @@ function ChatEntryHero({
         }}
       />
 
-      <div className="relative z-10 w-full max-w-[700px]">
-        {/* Usage row */}
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Zap className="size-3 text-primary" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-              {isFree ? "Free" : "Pro"} · {limit > 0 ? `${promptsLeft} left` : "Unlimited"}
-            </span>
+      <div className={`relative z-10 flex w-full flex-col gap-5 ${expanded ? "max-w-[1200px]" : "max-w-[720px]"}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Workspace
+            </p>
+            <h1 className="mt-2 text-[clamp(1.55rem,4.2vw,2.35rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-foreground">
+              Start with the brief.
+            </h1>
+            <p className="mt-2 max-w-[560px] text-[14px] leading-7 text-muted-foreground">
+              Write naturally, attach images when they help, and shape the prompt from there.
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:min-w-[290px]">
+            <div className="grid grid-cols-3 border border-border bg-card">
+              <div className="border-r border-border px-3 py-2">
+                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Weekly</p>
+                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+                  {subscriptionGenerationsRemaining.toLocaleString()}
+                </p>
+              </div>
+              <div className="border-r border-border px-3 py-2">
+                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Granted</p>
+                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+                  {grantedCreditsRemaining.toLocaleString()}
+                </p>
+              </div>
+              <div className="px-3 py-2">
+                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Total</p>
+                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+                  {totalPointsRemaining.toLocaleString()}
+                </p>
+              </div>
+            </div>
             {limit > 0 && (
-              <div className="relative h-1.5 w-28 overflow-hidden bg-muted">
-                <div
-                  className={`h-full transition-all duration-500 ${isAtLimit ? "bg-destructive" : isNear ? "bg-orange-500" : "bg-primary"}`}
-                  style={{ width: `${pct}%` }}
-                />
+              <div className="flex items-center gap-3">
+                <div className="relative h-1.5 flex-1 overflow-hidden bg-muted">
+                  <div
+                    className={`h-full transition-all duration-500 ${isAtLimit ? "bg-destructive" : isNear ? "bg-orange-500" : "bg-primary"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+                  {limit - promptsLeft}/{limit}
+                </span>
               </div>
             )}
           </div>
-          {isFree && <span className="font-mono text-[10px] text-muted-foreground/50">Resets weekly</span>}
         </div>
 
         {/* Entry card */}
@@ -1564,8 +1612,15 @@ function ChatEntryHero({
               New prompt workspace
             </span>
             <button
-              onClick={onShowTemplates}
+              onClick={() => setExpanded((value) => !value)}
               className="ml-auto flex items-center gap-1 border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {expanded ? <Minimize2 className="size-2.5" /> : <Maximize2 className="size-2.5" />}
+              {expanded ? "Compact" : "Expand"}
+            </button>
+            <button
+              onClick={onShowTemplates}
+              className="flex items-center gap-1 border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <BookOpen className="size-2.5" />Library
             </button>
@@ -1606,11 +1661,11 @@ function ChatEntryHero({
           )}
 
           {/* Textarea */}
-          <div className="cursor-text px-5 pb-2 pt-5" onClick={() => textareaRef.current?.focus()}>
+          <div className="cursor-text px-5 pb-2 pt-5 md:px-6 md:pt-6" onClick={() => textareaRef.current?.focus()}>
             <textarea
               ref={textareaRef}
-              rows={4}
-              className="w-full resize-none border-0 bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/35 focus:outline-none"
+              rows={expanded ? 12 : 4}
+              className={`w-full resize-none border-0 bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground/35 focus:outline-none md:text-[16px] ${expanded ? "min-h-[calc(100vh-24rem)]" : "min-h-[140px]"}`}
               placeholder="Describe what you want to build, write, or create — be as rough or precise as you like…"
               value={initialPrompt}
               onChange={(e) => onPromptChange(e.target.value)}
@@ -1626,8 +1681,8 @@ function ChatEntryHero({
           </div>
 
           {/* Toolbar */}
-          <div className="flex items-center justify-between border-t border-border px-5 py-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-3 md:flex-row md:items-center md:justify-between md:px-6">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Category select */}
               <div className="relative">
                 <select
@@ -1668,15 +1723,20 @@ function ChatEntryHero({
               </button>
             </div>
 
-            <button
-              onClick={() => mutation.mutate()}
-              disabled={!initialPrompt.trim() || isPending || isAtLimit}
-              className="flex items-center gap-2 bg-primary px-5 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              {isPending
-                ? <><RefreshCw className="size-3.5 animate-spin" />{entryUploading ? "Uploading…" : "Starting…"}</>
-                : <><Send className="size-3.5" />Start workspace</>}
-            </button>
+            <div className="flex items-center justify-between gap-3 md:justify-end">
+              <p className="hidden text-[11px] text-muted-foreground/50 md:block">
+                {expanded ? "Use expanded mode when you need room for longer briefs." : "Switch to expanded mode when you need more room."}
+              </p>
+              <button
+                onClick={() => mutation.mutate()}
+                disabled={!initialPrompt.trim() || isPending || isAtLimit}
+                className="flex min-h-10 items-center gap-2 bg-primary px-5 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              >
+                {isPending
+                  ? <><RefreshCw className="size-3.5 animate-spin" />{entryUploading ? "Uploading…" : "Starting…"}</>
+                  : <><Send className="size-3.5" />Start workspace</>}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1867,6 +1927,9 @@ export default function WorkspacePage() {
   const limit = plan?.generation_limit ?? 5;
   const planSlug = plan?.slug ?? "free";
   const promptsLeft = Math.max(limit - used, 0);
+  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? promptsLeft;
+  const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
+  const totalPointsRemaining = user?.total_points_remaining ?? (subscriptionGenerationsRemaining + grantedCreditsRemaining);
   const canUseDeepThinking = planSlug !== "free";
 
   /* Chats */
@@ -2236,7 +2299,12 @@ export default function WorkspacePage() {
               </button>
               <ChatEntryHero
                 onCreated={handleChatCreated}
-                promptsLeft={promptsLeft} limit={limit} planSlug={planSlug}
+                promptsLeft={promptsLeft}
+                limit={limit}
+                planSlug={planSlug}
+                subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+                grantedCreditsRemaining={grantedCreditsRemaining}
+                totalPointsRemaining={totalPointsRemaining}
                 onShowTemplates={() => setShowTemplatesPanel(true)}
                 initialPrompt={heroPrompt}
                 onPromptChange={setHeroPrompt}
@@ -2561,7 +2629,7 @@ export default function WorkspacePage() {
                     </div>
                   )}
                   <div
-                    className={`relative border bg-background transition-colors duration-150 focus-within:ring-1 focus-within:ring-ring ${isDraggingOver ? "border-primary/60 bg-primary/[0.02]" : "border-border"}`}
+                    className={`border bg-background transition-colors duration-150 focus-within:ring-1 focus-within:ring-ring ${isDraggingOver ? "border-primary/60 bg-primary/[0.02]" : "border-border"}`}
                     onDragEnter={handleInputDragEnter}
                     onDragLeave={handleInputDragLeave}
                     onDragOver={(e) => e.preventDefault()}
@@ -2583,36 +2651,47 @@ export default function WorkspacePage() {
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyDown}
                       disabled={isThinking || isUploading}
-                      rows={2}
-                      className="w-full resize-none bg-transparent px-4 py-3 pr-24 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                      rows={3}
+                      className="min-h-[112px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
                     />
-                    <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-                      <span className="font-mono text-[9px] text-muted-foreground/30">⌘↵</span>
-                      {/* Image attach */}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={handleImageSelect}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isThinking || attachedImages.length >= 4}
-                        title="Attach image"
-                        className="flex size-7 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
-                      >
-                        <ImagePlus className="size-3" />
-                      </button>
-                      <button
-                        onClick={handleSend}
-                        disabled={!inputValue.trim() || isThinking || isUploading}
-                        className="flex size-7 items-center justify-center bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-                      >
-                        {isUploading ? <RefreshCw className="size-3 animate-spin" /> : <Send className="size-3" />}
-                      </button>
+                    <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60">
+                          {hasFinalPrompt ? "Prompt support" : "Refine context"}
+                        </p>
+                        <p className="mt-1 hidden text-[11px] text-muted-foreground/45 sm:block">
+                          {hasFinalPrompt ? "Ask for revisions, code, or next-step help." : "Answer follow-up questions and keep shaping the result."}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="hidden font-mono text-[9px] text-muted-foreground/30 sm:inline">⌘↵</span>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={handleImageSelect}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isThinking || attachedImages.length >= 4}
+                          title="Attach image"
+                          className="flex h-8 items-center gap-1.5 border border-border bg-card px-2.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                        >
+                          <ImagePlus className="size-3" />
+                          <span className="hidden sm:inline">{attachedImages.length > 0 ? `${attachedImages.length}/4` : "Image"}</span>
+                        </button>
+                        <button
+                          onClick={handleSend}
+                          disabled={!inputValue.trim() || isThinking || isUploading}
+                          className="flex h-8 items-center gap-1.5 bg-primary px-3 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                        >
+                          {isUploading ? <RefreshCw className="size-3 animate-spin" /> : <Send className="size-3" />}
+                          <span>Send</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

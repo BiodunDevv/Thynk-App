@@ -15,7 +15,6 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code?: string,
     public readonly details?: unknown,
-    public readonly fieldErrors?: { field: string; message: string }[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -104,7 +103,7 @@ function redirectToSignIn() {
     return;
   }
   // Don't redirect if already on public/auth pages
-  const publicPaths = ["/", "/pricing", "/sign-in", "/get-started"];
+  const publicPaths = ["/", "/pricing", "/sign-in", "/get-started", "/pay"];
   const isPublic = publicPaths.some((p) => path === p || path.startsWith(`${p}/`));
   if (!isPublic) {
     window.location.href = "/?auth=sign-in";
@@ -175,7 +174,7 @@ export async function apiRequest<T>(
 
   const body = await response.json().catch(() => null) as {
     message?: string;
-    error?: { code?: string; details?: unknown; field_errors?: { field: string; message: string }[] };
+    error?: { code?: string; details?: unknown };
   } | null;
 
   if (!response.ok) {
@@ -184,7 +183,6 @@ export async function apiRequest<T>(
       response.status,
       body?.error?.code,
       body?.error?.details,
-      body?.error?.field_errors,
     );
   }
 

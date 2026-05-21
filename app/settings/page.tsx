@@ -8,7 +8,7 @@ import {
   Bell, CreditCard, ShieldCheck, UserRound,
   Check, Zap, ArrowRight, CheckCircle2, Clock,
   XCircle, Loader2, RefreshCw, Calendar, Receipt,
-  AlertCircle,
+  AlertCircle, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,26 +17,40 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 import { SectionContainer } from "@/components/shared/section-container";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  deleteNotification,
   getNotifications,
   getNotificationSummary,
   markAllNotificationsRead,
   markNotificationRead,
-  registerNotificationToken,
-  removeNotificationToken,
+  registerWebPushSubscription,
+  removeWebPushSubscription,
   sendTestNotification,
+  type NotificationRecord,
 } from "@/lib/api/notifications";
 import {
-  initializePayment,
   verifyPayment,
   getMyPayments,
-  type PaymentProvider,
 } from "@/lib/api/payments";
 import { refreshSession } from "@/lib/api/client";
 import { getPlans } from "@/lib/api/plans";
 import { getMySubscription } from "@/lib/api/subscriptions";
 import { getCurrentUser } from "@/lib/api/users";
-import { clearPendingCheckout } from "@/lib/billing/checkout";
+import { createCheckoutUrl } from "@/lib/billing/checkout";
 import { useAuthSession } from "@/lib/auth/session";
+import {
+  getExistingWebPushSubscription,
+  subscribeToWebPush,
+  supportsWebPush,
+  unsubscribeFromWebPush,
+} from "@/lib/notifications/web-push";
 import {
   formatPlanPrice,
   formatPlanProviderPrice,
@@ -48,10 +62,7 @@ import {
 
 /* ─── helpers ────────────────────────────────────────────────────── */
 
-function getBrowserNotificationToken(userId: string) {
-  if (typeof window === "undefined") return "";
-  return `web:${userId}:${window.location.origin}`;
-}
+const WEB_PUSH_VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
 
 function fmtDate(d: string | null | undefined, opts?: Intl.DateTimeFormatOptions) {
   if (!d) return "—";
@@ -248,40 +259,21 @@ import type { PlanRecord } from "@/lib/api/plans";
 function PlanCard({
   plan,
   isCurrent,
-  accessToken,
 }: {
   plan: PlanRecord;
   isCurrent: boolean;
-  accessToken: string;
 }) {
-  const [provider, setProvider] = React.useState<PaymentProvider>("paystack");
+  const [provider, setProvider] = React.useState<"paystack" | "stripe">("paystack");
   const badge = getPlanBadge(plan);
   const features = getPlanFeatures(plan);
   const isFree = plan.billing_interval === "free";
-
-  const payMut = useMutation({
-    mutationFn: () =>
-      initializePayment(accessToken, {
-        plan_id: plan.id,
-        provider,
-        callback_url: `${window.location.origin}/settings?tab=billing&payment=return`,
-      }),
-    onMutate: () => toast.loading("Preparing checkout…", { id: `pay-${plan.id}` }),
-    onSuccess: (res) => {
-      clearPendingCheckout();
-      const url = res.authorization?.authorization_url;
-      if (url) {
-        toast.success("Redirecting…", { id: `pay-${plan.id}` });
-        window.location.href = url;
-      } else {
-        toast.error("No checkout URL received. Try again.", { id: `pay-${plan.id}` });
-      }
-    },
-    onError: (err) => {
-      const msg = err instanceof Error ? err.message : "Checkout failed.";
-      toast.error(msg, { id: `pay-${plan.id}` });
-    },
+  const checkoutHref = createCheckoutUrl("/pay", {
+    planSlug: plan.slug,
+    provider,
+    source: "settings-billing",
   });
+  const displayPrice = isFree ? formatPlanPrice(plan) : formatPlanProviderPrice(plan, provider);
+  const providerCurrency = !isFree ? plan.provider_prices?.[provider]?.currency : null;
 
   return (
     <div className={[
@@ -306,10 +298,15 @@ function PlanCard({
           </p>
           <div className="mt-1.5 flex items-end gap-1">
             <span className="text-[1.75rem] font-semibold leading-none tracking-tight text-foreground">
-              {formatPlanPrice(plan)}
+              {displayPrice}
             </span>
             <span className="mb-0.5 text-[11px] text-muted-foreground">{getPlanCadence(plan)}</span>
           </div>
+          {providerCurrency && (
+            <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
+              {provider === "stripe" ? "Stripe" : "Paystack"} price · {providerCurrency}
+            </p>
+          )}
         </div>
         <div className="mt-2 flex items-center gap-1.5">
           <Zap className="size-3 text-primary" />
@@ -368,31 +365,25 @@ function PlanCard({
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => payMut.mutate()}
-              disabled={payMut.isPending || isCurrent}
+            <Link
+              href={checkoutHref}
+              aria-disabled={isCurrent}
               className={[
                 "flex w-full items-center justify-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-opacity",
                 isCurrent
-                  ? "border border-border bg-background text-muted-foreground cursor-default"
-                  : "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60",
+                  ? "pointer-events-none border border-border bg-background text-muted-foreground"
+                  : "bg-primary text-primary-foreground hover:opacity-90",
               ].join(" ")}
             >
-              {payMut.isPending ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Preparing…
-                </>
-              ) : isCurrent ? (
+              {isCurrent ? (
                 "Current plan"
               ) : (
                 <>
-                  Pay with {provider === "paystack" ? "Paystack" : "Stripe"}
+                  Continue with {provider === "paystack" ? "Paystack" : "Stripe"}
                   <ArrowRight className="size-3.5" />
                 </>
               )}
-            </button>
+            </Link>
           </>
         )}
       </div>
@@ -414,6 +405,7 @@ export default function SettingsPage() {
   const session = useAuthSession();
   const accessToken = session?.tokens.access_token ?? "";
   const searchParams = useSearchParams();
+  const webPushSupported = supportsWebPush();
 
   const activeTab = (searchParams.get("tab") ?? "account") as TabId;
   const [periodNowMs, setPeriodNowMs] = React.useState(() => Date.now());
@@ -464,21 +456,44 @@ export default function SettingsPage() {
   });
 
   const [notifPermission, setNotifPermission] = React.useState<NotificationPermission | "unsupported">(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+    if (typeof window === "undefined" || !webPushSupported) return "unsupported";
     return window.Notification.permission;
   });
+  const [browserPushEndpoint, setBrowserPushEndpoint] = React.useState<string | null>(null);
+  const [selectedNotification, setSelectedNotification] = React.useState<NotificationRecord | null>(null);
+
+  React.useEffect(() => {
+    if (activeTab !== "notifications") return;
+    if (!webPushSupported) {
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setNotifPermission(window.Notification.permission);
+      const existing = await getExistingWebPushSubscription();
+      if (!cancelled) {
+        setBrowserPushEndpoint(existing?.endpoint ?? null);
+      }
+    })().catch(() => {
+      if (!cancelled) {
+        setBrowserPushEndpoint(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, webPushSupported]);
 
   const registerNotifMut = useMutation({
     mutationFn: async () => {
-      const user = userQuery.data;
-      if (!user) throw new Error("User profile unavailable.");
-      if (!("Notification" in window)) throw new Error("Notifications not supported.");
-      const perm = await window.Notification.requestPermission();
-      setNotifPermission(perm);
-      if (perm !== "granted") throw new Error("Permission not granted.");
-      await registerNotificationToken(accessToken, getBrowserNotificationToken(user.id));
+      const subscription = await subscribeToWebPush(WEB_PUSH_VAPID_PUBLIC_KEY);
+      setNotifPermission(window.Notification.permission);
+      await registerWebPushSubscription(accessToken, subscription);
+      setBrowserPushEndpoint(subscription.endpoint);
       new window.Notification("Thynk notifications enabled", {
-        body: "You'll receive prompt and billing updates on this browser.",
+        body: "Background prompt, billing, and account alerts are now enabled for this browser.",
       });
     },
     onSuccess: () => {
@@ -491,9 +506,12 @@ export default function SettingsPage() {
 
   const removeNotifMut = useMutation({
     mutationFn: async () => {
-      const user = userQuery.data;
-      if (!user) throw new Error("User profile unavailable.");
-      await removeNotificationToken(accessToken, getBrowserNotificationToken(user.id));
+      const endpoint = browserPushEndpoint ?? (await getExistingWebPushSubscription())?.endpoint ?? null;
+      await unsubscribeFromWebPush();
+      if (endpoint) {
+        await removeWebPushSubscription(accessToken, endpoint);
+      }
+      setBrowserPushEndpoint(null);
     },
     onSuccess: () => {
       toast.success("Notifications disabled on this browser");
@@ -536,6 +554,19 @@ export default function SettingsPage() {
       notificationSummaryQuery.refetch();
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update notification"),
+  });
+
+  const deleteNotifMut = useMutation({
+    mutationFn: (notificationId: string) => deleteNotification(accessToken, notificationId),
+    onSuccess: (_, notificationId) => {
+      toast.success("Notification deleted");
+      if (selectedNotification?.id === notificationId) {
+        setSelectedNotification(null);
+      }
+      notificationsQuery.refetch();
+      notificationSummaryQuery.refetch();
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to delete notification"),
   });
 
   const user = userQuery.data ?? session?.user ?? null;
@@ -865,7 +896,6 @@ export default function SettingsPage() {
                           key={plan.id}
                           plan={plan}
                           isCurrent={currentPlan?.id === plan.id}
-                          accessToken={accessToken}
                         />
                       ))}
                     </div>
@@ -1020,7 +1050,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="p-5 space-y-4">
                     <p className="text-[13px] text-muted-foreground">
-                      Enable browser notifications to receive prompt and billing updates on this device.
+                      Enable real browser push to receive prompt, billing, and account updates even when Thynk is not open.
                     </p>
                     <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
                       <span>
@@ -1030,20 +1060,24 @@ export default function SettingsPage() {
                       <span>
                         Unread: {notificationSummaryQuery.data?.unread_count ?? 0}
                       </span>
+                      <span className="text-muted-foreground/40">•</span>
+                      <span>
+                        This browser: {browserPushEndpoint ? "Connected" : "Not connected"}
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        disabled={notifPermission === "unsupported" || registerNotifMut.isPending}
+                        disabled={notifPermission === "unsupported" || registerNotifMut.isPending || Boolean(browserPushEndpoint)}
                         onClick={() => registerNotifMut.mutate()}
                         className="flex items-center gap-2 bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                       >
                         {registerNotifMut.isPending && <Loader2 className="size-3.5 animate-spin" />}
-                        Enable notifications
+                        Enable background push
                       </button>
                       <button
                         type="button"
-                        disabled={notifPermission === "unsupported" || removeNotifMut.isPending}
+                        disabled={notifPermission === "unsupported" || removeNotifMut.isPending || !browserPushEndpoint}
                         onClick={() => removeNotifMut.mutate()}
                         className="flex items-center gap-2 border border-border bg-background px-4 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                       >
@@ -1105,6 +1139,7 @@ export default function SettingsPage() {
                             if (!item.is_read) {
                               markNotifReadMut.mutate(item.id);
                             }
+                            setSelectedNotification(item);
                           }}
                           className="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/20"
                         >
@@ -1130,6 +1165,77 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+
+                <Dialog
+                  open={Boolean(selectedNotification)}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setSelectedNotification(null);
+                    }
+                  }}
+                >
+                  <DialogContent className="max-w-[calc(100%-1.5rem)] sm:max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>{selectedNotification?.title ?? "Notification"}</DialogTitle>
+                      <DialogDescription>
+                        {selectedNotification ? fmtDateTime(selectedNotification.created_at) : ""}
+                      </DialogDescription>
+                    </DialogHeader>
+                    {selectedNotification && (
+                      <div className="space-y-4">
+                        <div className="border border-border bg-muted/20 px-4 py-4">
+                          <p className="text-[13px] leading-6 text-foreground">
+                            {selectedNotification.body}
+                          </p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Type
+                            </p>
+                            <p className="mt-1 text-[12px] font-medium text-foreground">
+                              {selectedNotification.type.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+                              Status
+                            </p>
+                            <p className="mt-1 text-[12px] font-medium text-foreground">
+                              {selectedNotification.is_read ? "Read" : "Unread"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <DialogFooter className="gap-2 sm:justify-between">
+                      <button
+                        type="button"
+                        disabled={!selectedNotification || deleteNotifMut.isPending}
+                        onClick={() => {
+                          if (selectedNotification) {
+                            deleteNotifMut.mutate(selectedNotification.id);
+                          }
+                        }}
+                        className="flex items-center justify-center gap-2 border border-destructive/20 bg-destructive/5 px-4 py-2 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        {deleteNotifMut.isPending ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                        Delete notification
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedNotification(null)}
+                        className="border border-border bg-background px-4 py-2 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        Close
+                      </button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
 

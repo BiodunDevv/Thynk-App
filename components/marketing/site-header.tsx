@@ -36,7 +36,11 @@ import { useAdminSession, clearAdminSession } from "@/lib/auth/admin-session";
 import { signedInNavigation, siteNavigation } from "@/lib/constants/navigation";
 import { getCurrentUser } from "@/lib/api/users";
 import { getPlans } from "@/lib/api/plans";
-import { getNotificationSummary } from "@/lib/api/notifications";
+import { getNotifications, getNotificationSummary } from "@/lib/api/notifications";
+
+function getSeenNotificationKey(userId: string) {
+  return `thynk-seen-notifications:${userId}`;
+}
 
 /* ── Theme toggle (inline, no extra wrapper) ──────────────────────── */
 
@@ -75,16 +79,12 @@ function InlineThemeToggle() {
             onClick={() => setTheme(value)}
             className={[
               "flex items-center gap-2.5 px-3 py-2 text-[12px] cursor-pointer",
-              active === value
-                ? "text-foreground font-medium"
-                : "text-muted-foreground",
+              active === value ? "text-foreground font-medium" : "text-muted-foreground",
             ].join(" ")}
           >
             <Icon className="size-3.5" />
             {label}
-            {active === value && (
-              <ChevronRight className="ml-auto size-3 opacity-50" />
-            )}
+            {active === value && <ChevronRight className="ml-auto size-3 opacity-50" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -97,56 +97,49 @@ function InlineThemeToggle() {
 function UsagePill({
   planSlug,
   subscriptionGenerationsRemaining,
+  totalPointsRemaining,
 }: {
   planSlug: string;
   subscriptionGenerationsRemaining: number;
+  totalPointsRemaining: number;
 }) {
   const isFree = planSlug === "free";
   const freeLimit = 5;
   const used = Math.max(freeLimit - subscriptionGenerationsRemaining, 0);
   const pct = freeLimit > 0 ? Math.min((used / freeLimit) * 100, 100) : 0;
-  const remaining = Math.max(subscriptionGenerationsRemaining, 0);
   const isNear = pct >= 80;
-  const isOut = pct >= 100;
+  const isOut  = pct >= 100;
 
   /* SVG arc */
   const r = 8;
   const circ = 2 * Math.PI * r;
   const dash = (pct / 100) * circ;
 
-  const accentClass = isOut
-    ? "stroke-destructive"
-    : isNear
-      ? "stroke-orange-500"
-      : "stroke-primary";
-  const textClass = isOut
-    ? "text-destructive"
-    : isNear
-      ? "text-orange-500"
-      : "text-foreground";
+  const accentClass = isOut ? "stroke-destructive" : isNear ? "stroke-orange-500" : "stroke-primary";
+  const textClass   = isOut ? "text-destructive"   : isNear ? "text-orange-500"   : "text-foreground";
   const borderClass = isOut
     ? "border-destructive/30 hover:border-destructive/60"
     : isNear
-      ? "border-orange-500/30 hover:border-orange-500/60"
-      : "border-border hover:border-ring";
+    ? "border-orange-500/30 hover:border-orange-500/60"
+    : "border-border hover:border-ring";
 
   if (!isFree) {
     return (
       <Link
         href="/settings?tab=billing"
-        className="group flex h-10 items-center gap-2.5 border border-border bg-card px-3 shadow-sm transition-colors hover:border-ring"
-        title={`${subscriptionGenerationsRemaining.toLocaleString()} current-plan generations remaining`}
+        className="group flex h-10 min-w-0 items-center gap-2 border border-border bg-card px-2.5 shadow-sm transition-colors hover:border-ring sm:gap-2.5 sm:px-3"
+        title={`${totalPointsRemaining.toLocaleString()} total credits available`}
       >
         <span className="flex size-5 shrink-0 items-center justify-center bg-muted text-foreground">
           <Zap className="size-2.5" />
         </span>
 
-        <span className="flex flex-col leading-none">
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-            Premium
+        <span className="flex min-w-0 flex-col leading-none">
+          <span className="truncate font-mono text-[8px] uppercase tracking-[0.14em] text-muted-foreground sm:text-[9px] sm:tracking-[0.16em]">
+            Credits
           </span>
-          <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground">
-            {subscriptionGenerationsRemaining.toLocaleString()}
+          <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground sm:text-[12px]">
+            {totalPointsRemaining.toLocaleString()}
             <span className="font-normal text-muted-foreground/50"> left</span>
           </span>
         </span>
@@ -158,80 +151,41 @@ function UsagePill({
     <Link
       href="/pricing"
       className={[
-        "group flex h-10 items-center gap-2.5 border bg-card px-3 shadow-sm transition-colors",
+        "group flex h-10 min-w-0 items-center gap-2 border bg-card px-2.5 shadow-sm transition-colors sm:gap-2.5 sm:px-3",
         borderClass,
       ].join(" ")}
-      title={`${remaining} of ${freeLimit} generations remaining`}
+      title={`${totalPointsRemaining.toLocaleString()} total credits available`}
     >
       {/* Arc dial */}
       <span className="relative shrink-0">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-          className="-rotate-90"
-        >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="-rotate-90">
+          <circle cx="10" cy="10" r={r} strokeWidth="2.2" className="stroke-muted" />
           <circle
-            cx="10"
-            cy="10"
-            r={r}
-            strokeWidth="2.2"
-            className="stroke-muted"
-          />
-          <circle
-            cx="10"
-            cy="10"
-            r={r}
+            cx="10" cy="10" r={r}
             strokeWidth="2.2"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ - dash}`}
             className={accentClass}
-            style={{
-              transition: "stroke-dasharray 0.5s cubic-bezier(.4,0,.2,1)",
-            }}
+            style={{ transition: "stroke-dasharray 0.5s cubic-bezier(.4,0,.2,1)" }}
           />
         </svg>
-        <Zap
-          className={[
-            "absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2",
-            isOut
-              ? "text-destructive"
-              : isNear
-                ? "text-orange-500"
-                : "text-primary",
-          ].join(" ")}
-        />
+        <Zap className={["absolute left-1/2 top-1/2 size-2 -translate-x-1/2 -translate-y-1/2", isOut ? "text-destructive" : isNear ? "text-orange-500" : "text-primary"].join(" ")} />
       </span>
 
       {/* Numbers */}
-      <span className="flex flex-col leading-none">
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-          {isFree ? "Free" : "Pro"}&nbsp;·&nbsp;gen
+      <span className="flex min-w-0 flex-col leading-none">
+        <span className="truncate font-mono text-[8px] uppercase tracking-[0.14em] text-muted-foreground sm:text-[9px] sm:tracking-[0.16em]">
+          Credits
         </span>
-        <span
-          className={[
-            "font-mono text-[11px] font-semibold tabular-nums",
-            textClass,
-          ].join(" ")}
-        >
-          {remaining}
-          <span className="font-normal text-muted-foreground/50">
-            /{freeLimit}
-          </span>
+        <span className={["font-mono text-[11px] font-semibold tabular-nums sm:text-[12px]", textClass].join(" ")}>
+          {totalPointsRemaining.toLocaleString()}
+          <span className="font-normal text-muted-foreground/50"> left</span>
         </span>
       </span>
 
       {/* Upgrade arrow — free only */}
       {isFree && (
-        <ArrowUpRight
-          className={[
-            "size-3 transition-colors",
-            isOut || isNear
-              ? "text-primary"
-              : "text-muted-foreground/40 group-hover:text-primary",
-          ].join(" ")}
-        />
+        <ArrowUpRight className={["size-3 transition-colors", isOut || isNear ? "text-primary" : "text-muted-foreground/40 group-hover:text-primary"].join(" ")} />
       )}
     </Link>
   );
@@ -338,22 +292,60 @@ export function SiteHeader() {
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
+  const notificationsLiveQuery = useQuery({
+    queryKey: ["notifications-live", accessToken],
+    queryFn: () => getNotifications(accessToken),
+    enabled:
+      Boolean(accessToken) &&
+      !adminSession &&
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      window.Notification.permission === "granted",
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
 
   const user = userQuery.data;
   const sessionPlanId = session?.plan?.plan_id ?? null;
-  const plan =
-    plansQuery.data?.find((p) => p.id === user?.current_plan_id) ??
-    plansQuery.data?.find((p) => p.id === sessionPlanId) ??
-    plansQuery.data?.find((p) => p.slug === "free");
+  const plan = plansQuery.data?.find((p) => p.id === user?.current_plan_id)
+    ?? plansQuery.data?.find((p) => p.id === sessionPlanId)
+    ?? plansQuery.data?.find((p) => p.slug === "free");
 
   const planSlug = plan?.slug ?? "free";
-  const subscriptionGenerationsRemaining =
-    user?.subscription_generations_remaining ?? 0;
+  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? 0;
   const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
   const totalPointsRemaining = user?.total_points_remaining ?? 0;
   const used = user?.monthly_generation_count ?? 0;
   const limit = plan?.generation_limit ?? 5;
   const unreadNotifications = notificationSummaryQuery.data?.unread_count ?? 0;
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !user?.id) return;
+    if (!("Notification" in window) || window.Notification.permission !== "granted") return;
+
+    const notifications = notificationsLiveQuery.data ?? [];
+    if (!notifications.length) return;
+
+    const storageKey = getSeenNotificationKey(user.id);
+    const seenIds = new Set<string>(
+      JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as string[],
+    );
+
+    let hasChanges = false;
+    for (const notification of notifications) {
+      if (notification.is_read || seenIds.has(notification.id)) continue;
+      new window.Notification(notification.title, {
+        body: notification.body,
+        tag: `thynk-notification-${notification.id}`,
+      });
+      seenIds.add(notification.id);
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      window.localStorage.setItem(storageKey, JSON.stringify(Array.from(seenIds)));
+    }
+  }, [notificationsLiveQuery.data, user?.id]);
 
   const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
   const isNearLimit = pct >= 80;
@@ -372,13 +364,11 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto grid max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-2 py-3 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:px-6">
+
         {/* Logo */}
-        <Link
-          href="/"
-          className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <div className="flex h-10 items-center border border-border bg-card px-3.5 shadow-sm">
+        <Link href="/" className="shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <div className="flex h-10 items-center border border-border bg-card px-2.5 shadow-sm sm:px-3.5">
             <ThynkLogo size="sm" />
           </div>
         </Link>
@@ -402,19 +392,22 @@ export function SiteHeader() {
         </nav>
 
         {/* Right cluster */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center justify-end gap-2 sm:ml-auto">
+
           {/* Usage pill — always visible for authenticated users */}
           {session && !adminSession && user && plan && (
-            <UsagePill
-              planSlug={planSlug}
-              subscriptionGenerationsRemaining={
-                subscriptionGenerationsRemaining
-              }
-            />
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <UsagePill
+                planSlug={planSlug}
+                subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+                totalPointsRemaining={totalPointsRemaining}
+              />
+            </div>
           )}
 
           {/* Actions pill */}
           <div className="flex h-10 shrink-0 items-stretch border border-border bg-card shadow-sm">
+
             {/* Theme toggle */}
             <div className="border-r border-border">
               <InlineThemeToggle />
@@ -428,9 +421,7 @@ export function SiteHeader() {
                 className="flex h-full items-center gap-1.5 border-r border-border px-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Heart className="size-3.5" />
-                <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] sm:inline">
-                  Saved
-                </span>
+                <span className="hidden font-mono text-[10px] uppercase tracking-[0.14em] lg:inline">Saved</span>
               </button>
             )}
 
@@ -443,20 +434,16 @@ export function SiteHeader() {
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 px-4 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none">
                     <UserRound className="size-4 shrink-0" />
-                    <span className="hidden sm:inline max-w-30 truncate">
+                    <span className="hidden lg:inline max-w-30 truncate">
                       {session.user.email.split("@")[0]}
                     </span>
                   </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent
-                  align="end"
-                  className="w-64 border-border p-0"
-                >
+                <DropdownMenuContent align="end" className="w-64 border-border p-0">
                   <div className="border-b border-border px-4 py-3">
                     <p className="text-[13px] font-medium text-foreground truncate">
-                      {session.user.full_name ??
-                        session.user.email.split("@")[0]}
+                      {session.user.full_name ?? session.user.email.split("@")[0]}
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
                       {session.user.email}
@@ -470,42 +457,19 @@ export function SiteHeader() {
                         <div className="flex items-center gap-1.5">
                           <Zap className="size-3 text-primary" />
                           <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                            {planSlug === "free"
-                              ? "Generations"
-                              : "Current plan"}
+                            {planSlug === "free" ? "Generations" : "Current plan"}
                           </span>
                         </div>
-                        <span
-                          className={[
-                            "font-mono text-[11px] font-semibold tabular-nums",
-                            isAtLimit
-                              ? "text-destructive"
-                              : isNearLimit
-                                ? "text-orange-500"
-                                : "text-foreground",
-                          ].join(" ")}
-                        >
-                          {planSlug === "free"
-                            ? Math.max(limit - used, 0)
-                            : subscriptionGenerationsRemaining}
-                          <span className="font-normal text-muted-foreground/50">
-                            {" "}
-                            left
-                          </span>
+                        <span className={["font-mono text-[11px] font-semibold tabular-nums", isAtLimit ? "text-destructive" : isNearLimit ? "text-orange-500" : "text-foreground"].join(" ")}>
+                          {planSlug === "free" ? Math.max(limit - used, 0) : subscriptionGenerationsRemaining}
+                          <span className="font-normal text-muted-foreground/50"> left</span>
                         </span>
                       </div>
 
                       {/* Progress bar */}
                       <div className="h-1 w-full overflow-hidden bg-muted">
                         <div
-                          className={[
-                            "h-full transition-all duration-500",
-                            isAtLimit
-                              ? "bg-destructive"
-                              : isNearLimit
-                                ? "bg-orange-500"
-                                : "bg-primary",
-                          ].join(" ")}
+                          className={["h-full transition-all duration-500", isAtLimit ? "bg-destructive" : isNearLimit ? "bg-orange-500" : "bg-primary"].join(" ")}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -513,16 +477,10 @@ export function SiteHeader() {
                       {/* Sub-row */}
                       <div className="mt-1.5 flex items-center justify-between">
                         <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-                          {planSlug === "free"
-                            ? "Free · resets weekly"
-                            : planSlug.includes("monthly")
-                              ? "Current plan · monthly"
-                              : "Current plan · yearly"}
+                          {planSlug === "free" ? "Free · resets weekly" : planSlug.includes("monthly") ? "Current plan · monthly" : "Current plan · yearly"}
                         </span>
                         <span className="font-mono text-[9px] tabular-nums text-muted-foreground/50">
-                          {planSlug === "free"
-                            ? `${used}/${limit} used`
-                            : `${subscriptionGenerationsRemaining.toLocaleString()} left`}
+                          {planSlug === "free" ? `${used}/${limit} used` : `${subscriptionGenerationsRemaining.toLocaleString()} left`}
                         </span>
                       </div>
 
@@ -556,17 +514,10 @@ export function SiteHeader() {
                       {planSlug === "free" && (
                         <Link
                           href="/pricing"
-                          className={[
-                            "mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90",
-                            isAtLimit || isNearLimit
-                              ? "bg-primary text-primary-foreground"
-                              : "border border-border bg-muted text-muted-foreground hover:text-foreground",
-                          ].join(" ")}
+                          className={["mt-2.5 flex w-full items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-medium transition-opacity hover:opacity-90", isAtLimit || isNearLimit ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-muted-foreground hover:text-foreground"].join(" ")}
                         >
                           <Zap className="size-3" />
-                          {isAtLimit
-                            ? "Limit reached — Upgrade now"
-                            : "Upgrade to Pro"}
+                          {isAtLimit ? "Limit reached — Upgrade now" : "Upgrade to Pro"}
                           <ArrowUpRight className="size-3" />
                         </Link>
                       )}
@@ -575,19 +526,13 @@ export function SiteHeader() {
 
                   <div className="py-1">
                     <DropdownMenuItem asChild>
-                      <Link
-                        href="/workspace"
-                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
-                      >
+                      <Link href="/workspace" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
                         <LayoutDashboard className="size-3.5 text-muted-foreground" />
                         Workspace
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link
-                        href="/settings?tab=notifications"
-                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
-                      >
+                      <Link href="/settings?tab=notifications" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
                         <Bell className="size-3.5 text-muted-foreground" />
                         Notifications
                         {unreadNotifications > 0 && (
@@ -598,10 +543,7 @@ export function SiteHeader() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link
-                        href="/settings"
-                        className="flex items-center gap-2.5 px-4 py-2 text-[13px]"
-                      >
+                      <Link href="/settings" className="flex items-center gap-2.5 px-4 py-2 text-[13px]">
                         <Settings className="size-3.5 text-muted-foreground" />
                         Settings
                       </Link>
@@ -621,6 +563,7 @@ export function SiteHeader() {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
+
             ) : (
               /* ── Signed out ── */
               <>
@@ -639,7 +582,9 @@ export function SiteHeader() {
               </>
             )}
           </div>
+
         </div>
+
       </div>
 
       {/* Saved prompts slide-over */}

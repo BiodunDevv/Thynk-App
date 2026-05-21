@@ -124,7 +124,7 @@ export function PricingPreview() {
                 {/* CTA */}
                 <div className="mt-7">
                   <Link
-                    href={createCheckoutUrl("/get-started", {
+                    href={createCheckoutUrl("/pay", {
                       planSlug: plan.slug,
                       source: "pricing-preview",
                     })}

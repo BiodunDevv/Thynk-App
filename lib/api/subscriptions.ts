@@ -1,4 +1,4 @@
-import { apiDataRequest } from "@/lib/api/client";
+import { apiRequest } from "@/lib/api/client";
 
 export type SubscriptionRecord = {
   id: string;
@@ -13,11 +13,11 @@ export type SubscriptionRecord = {
   created_at: string | null;
 };
 
-export async function getMySubscription(accessToken: string): Promise<SubscriptionRecord | null> {
-  const result = await apiDataRequest<SubscriptionRecord | null>("/subscriptions/current", {
+export async function getMySubscription(accessToken: string) {
+  const response = await apiRequest<SubscriptionRecord | null>("/subscriptions/current", {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
   });
-  return result ?? null;
+  return response.data ?? null;
 }

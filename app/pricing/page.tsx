@@ -214,7 +214,7 @@ export default function PricingPage() {
                         href={
                           isCurrent
                             ? "/settings?tab=billing"
-                            : createCheckoutUrl("/get-started", {
+                            : createCheckoutUrl("/pay", {
                                 planSlug: plan.slug,
                                 source: "pricing-page",
                               })
@@ -343,7 +343,7 @@ export default function PricingPage() {
               </h3>
             </div>
             <Link
-              href="/get-started"
+              href="/pay"
               className="inline-flex shrink-0 items-center gap-2 bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               Start free

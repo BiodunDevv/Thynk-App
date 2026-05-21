@@ -28,8 +28,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type FieldErrors = Record<string, string>;
-
 type AuthModalProps = {
   open: boolean;
   view: AuthView;
@@ -43,17 +41,10 @@ type AuthModalProps = {
   onNoticeChange: (message: string | null) => void;
 };
 
-function getErrorMessage(error: unknown): string {
+function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return "Something went wrong. Please try again.";
-}
-
-function getFieldErrors(error: unknown): FieldErrors {
-  if (!(error instanceof ApiError)) return {};
-  const raw = error.fieldErrors;
-  if (!Array.isArray(raw)) return {};
-  return Object.fromEntries(raw.map(({ field, message }) => [field, message]));
 }
 
 const viewMeta: Record<AuthView, { title: string; description: string }> = {
@@ -268,12 +259,8 @@ export function AuthModal({
   const [password, setPassword] = React.useState("");
   const [newPassword, setNewPassword] = React.useState("");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors>({});
 
-  const resetFeedback = React.useCallback(() => {
-    setErrorMessage(null);
-    setFieldErrors({});
-  }, []);
+  const resetFeedback = React.useCallback(() => setErrorMessage(null), []);
 
   const loginMutation = useMutation({
     mutationFn: (payload: LoginPayload) => loginUser(payload),
@@ -296,18 +283,10 @@ export function AuthModal({
       const msg = getErrorMessage(error);
       if (error instanceof ApiError && error.status === 403 && msg.toLowerCase().includes("verify")) {
         setErrorMessage(null);
-        setFieldErrors({});
         onNoticeChange("A new verification code was sent to your email.");
         onViewChange("verify-email");
       } else {
-        const fe = getFieldErrors(error);
-        if (Object.keys(fe).length > 0) {
-          setFieldErrors(fe);
-          setErrorMessage(null);
-        } else {
-          setErrorMessage(msg);
-          setFieldErrors({});
-        }
+        setErrorMessage(msg);
       }
     },
   });
@@ -320,16 +299,7 @@ export function AuthModal({
       onNoticeChange(null);
       setPassword("");
     },
-    onError: (error) => {
-      const fe = getFieldErrors(error);
-      if (Object.keys(fe).length > 0) {
-        setFieldErrors(fe);
-        setErrorMessage(null);
-      } else {
-        setErrorMessage(getErrorMessage(error));
-        setFieldErrors({});
-      }
-    },
+    onError: (error) => setErrorMessage(getErrorMessage(error)),
   });
 
   const verifyEmailMutation = useMutation({
@@ -415,7 +385,7 @@ export function AuthModal({
               <button
                 key={tab}
                 type="button"
-                onClick={() => { resetFeedback(); setFieldErrors({}); onViewChange(tab); }}
+                onClick={() => { resetFeedback(); onViewChange(tab); }}
                 className={[
                   "flex-1 py-3 text-sm font-medium transition-colors",
                   view === tab
@@ -458,21 +428,11 @@ export function AuthModal({
               className="space-y-4"
               onSubmit={(e) => { e.preventDefault(); resetFeedback(); loginMutation.mutate({ email, password }); }}
             >
-              <Field id="si-email" label="Email address" error={fieldErrors.email}>
-                <Input
-                  id="si-email" type="email" autoComplete="email"
-                  value={email} onChange={(e) => { onEmailChange(e.target.value); setFieldErrors((p) => ({ ...p, email: "" })); }}
-                  placeholder="you@thynk.app"
-                  className={fieldErrors.email ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                />
+              <Field id="si-email" label="Email address">
+                <Input id="si-email" type="email" autoComplete="email" value={email} onChange={(e) => onEmailChange(e.target.value)} placeholder="you@thynk.app" />
               </Field>
-              <Field id="si-password" label="Password" error={fieldErrors.password}>
-                <Input
-                  id="si-password" type="password" autoComplete="current-password"
-                  value={password} onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
-                  placeholder="Your password"
-                  className={fieldErrors.password ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                />
+              <Field id="si-password" label="Password">
+                <Input id="si-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" />
               </Field>
               <div className="flex justify-end">
                 <button type="button" className="text-xs text-muted-foreground transition-colors hover:text-foreground" onClick={() => { resetFeedback(); onViewChange("forgot-password"); }}>
@@ -489,29 +449,14 @@ export function AuthModal({
               className="space-y-4"
               onSubmit={(e) => { e.preventDefault(); resetFeedback(); registerMutation.mutate({ full_name: fullName, email, password }); }}
             >
-              <Field id="reg-name" label="Full name" error={fieldErrors.full_name}>
-                <Input
-                  id="reg-name" autoComplete="name"
-                  value={fullName} onChange={(e) => { setFullName(e.target.value); setFieldErrors((p) => ({ ...p, full_name: "" })); }}
-                  placeholder="Your full name"
-                  className={fieldErrors.full_name ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                />
+              <Field id="reg-name" label="Full name">
+                <Input id="reg-name" autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" />
               </Field>
-              <Field id="reg-email" label="Email address" error={fieldErrors.email}>
-                <Input
-                  id="reg-email" type="email" autoComplete="email"
-                  value={email} onChange={(e) => { onEmailChange(e.target.value); setFieldErrors((p) => ({ ...p, email: "" })); }}
-                  placeholder="you@thynk.app"
-                  className={fieldErrors.email ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                />
+              <Field id="reg-email" label="Email address">
+                <Input id="reg-email" type="email" autoComplete="email" value={email} onChange={(e) => onEmailChange(e.target.value)} placeholder="you@thynk.app" />
               </Field>
-              <Field id="reg-password" label="Password" error={fieldErrors.password}>
-                <Input
-                  id="reg-password" type="password" autoComplete="new-password"
-                  value={password} onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: "" })); }}
-                  placeholder="Create a secure password"
-                  className={fieldErrors.password ? "border-destructive/60 focus-visible:ring-destructive/30" : ""}
-                />
+              <Field id="reg-password" label="Password">
+                <Input id="reg-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Create a secure password" />
               </Field>
               <SubmitButton loading={registerMutation.isPending} label="Get started free" loadingLabel="Creating account…" />
               <p className="text-center text-xs text-muted-foreground">
@@ -649,19 +594,13 @@ export function AuthModal({
   );
 }
 
-function Field({ id, label, error, children }: { id: string; label: string; error?: string; children: React.ReactNode }) {
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
         {label}
       </Label>
       {children}
-      {error && (
-        <p className="flex items-center gap-1.5 text-[12px] text-destructive">
-          <span className="inline-block size-1 shrink-0 rounded-full bg-destructive" />
-          {error}
-        </p>
-      )}
     </div>
   );
 }
