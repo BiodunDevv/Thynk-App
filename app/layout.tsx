@@ -6,6 +6,7 @@ import { AuthModalProvider } from "@/components/auth/auth-modal-provider";
 import { QueryProvider } from "@/components/shared/query-provider";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { PullToRefresh } from "@/components/shared/pull-to-refresh";
 
 export const metadata: Metadata = {
   metadataBase: new URL("http://127.0.0.1:3000"),
@@ -62,6 +63,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <AuthModalProvider>
+              <PullToRefresh />
               <div className="flex min-h-screen flex-col">{children}</div>
               <Toaster />
             </AuthModalProvider>

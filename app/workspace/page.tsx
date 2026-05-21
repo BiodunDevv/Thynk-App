@@ -4,11 +4,32 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Send, Download, Copy, ChevronRight,
-  RefreshCw, ChevronDown, ChevronUp, History,
-  ArrowRight, Zap, Clock, ImagePlus,
-  MessageSquare, ArrowLeft, X, Search, Plus,
-  Heart, Check, CornerDownRight, BookOpen, Layers, Trash2, Brain, Maximize2, Minimize2,
+  Send,
+  Download,
+  Copy,
+  ChevronRight,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  History,
+  ArrowRight,
+  Zap,
+  Clock,
+  ImagePlus,
+  MessageSquare,
+  ArrowLeft,
+  X,
+  Search,
+  Plus,
+  Heart,
+  Check,
+  CornerDownRight,
+  BookOpen,
+  Layers,
+  Trash2,
+  Brain,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -90,11 +111,16 @@ function ThinkingIndicator() {
           <span
             key={i}
             className="block size-1.5 rounded-full bg-primary/70"
-            style={{ animation: `thynk-think 1.1s ease-in-out ${delay}s infinite` }}
+            style={{
+              animation: `thynk-think 1.1s ease-in-out ${delay}s infinite`,
+            }}
           />
         ))}
       </div>
-      <Zap className="size-3 text-primary" style={{ animation: "thynk-pulse 2s ease-in-out infinite" }} />
+      <Zap
+        className="size-3 text-primary"
+        style={{ animation: "thynk-pulse 2s ease-in-out infinite" }}
+      />
       <span
         className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground transition-opacity duration-200"
         style={{ opacity: fade ? 1 : 0 }}
@@ -119,19 +145,41 @@ function ThinkingIndicator() {
    VARIATION HINTS
 ═══════════════════════════════════════════════════════════════════ */
 const VARIATION_HINTS = [
-  { label: "More concise",    value: "Make it significantly shorter and more direct." },
-  { label: "More detailed",   value: "Expand with more context, examples, and nuance." },
-  { label: "Different tone",  value: "Reframe with a fresh tone — different register and voice." },
-  { label: "Step-by-step",   value: "Structure it as a clear numbered step-by-step process." },
-  { label: "Creative angle",  value: "Take a more creative and unconventional approach." },
-  { label: "Technical depth", value: "Add technical precision, terminology, and specificity." },
+  {
+    label: "More concise",
+    value: "Make it significantly shorter and more direct.",
+  },
+  {
+    label: "More detailed",
+    value: "Expand with more context, examples, and nuance.",
+  },
+  {
+    label: "Different tone",
+    value: "Reframe with a fresh tone — different register and voice.",
+  },
+  {
+    label: "Step-by-step",
+    value: "Structure it as a clear numbered step-by-step process.",
+  },
+  {
+    label: "Creative angle",
+    value: "Take a more creative and unconventional approach.",
+  },
+  {
+    label: "Technical depth",
+    value: "Add technical precision, terminology, and specificity.",
+  },
 ];
 
 function parsePromptDocumentSections(content: string) {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   const promptMatch = normalized.match(/## Prompt\s*([\s\S]*?)(?=\n## |\s*$)/i);
-  const whyMatch = normalized.match(/## Why this works\s*([\s\S]*?)(?=\n## |\s*$)/i);
-  const bestUsedMatch = normalized.match(/## Best used with\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const whyMatch = normalized.match(
+    /## Why this works\s*([\s\S]*?)(?=\n## |\s*$)/i,
+  );
+  const bestUsedMatch = normalized.match(
+    /## Best used with\s*([\s\S]*?)(?=\n## |\s*$)/i,
+  );
 
   return {
     prompt: promptMatch?.[1]?.trim() ?? normalized,
@@ -157,7 +205,9 @@ function parseStructuredAnswerSections(content: string) {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   const answerMatch = normalized.match(/## Answer\s*([\s\S]*?)(?=\n## |\s*$)/i);
   const whyMatch = normalized.match(/## Why\s*([\s\S]*?)(?=\n## |\s*$)/i);
-  const nextStepMatch = normalized.match(/## Suggested next step\s*([\s\S]*?)(?=\n## |\s*$)/i);
+  const nextStepMatch = normalized.match(
+    /## Suggested next step\s*([\s\S]*?)(?=\n## |\s*$)/i,
+  );
 
   return {
     answer: normalizeRenderedText(answerMatch?.[1] ?? normalized),
@@ -175,22 +225,39 @@ function looksLikeCodeLine(line: string) {
   if (!value) return false;
 
   return (
-    /^<!DOCTYPE/i.test(value)
-    || /^<html[\s>]/i.test(value)
-    || /^<\/?[a-z][\w:-]*(\s|>|$)/i.test(value)
-    || /^(import|export|const|let|var|function|class|interface|type)\b/.test(value)
-    || /^(body|html|nav|main|section|article|header|footer|form|button|input|textarea|\.|#)[\w\s\-.:#[\]="'(),>+~]*\{/.test(value)
-    || /^@[a-z-]+/i.test(value)
-    || /=>\s*\{?$/.test(value)
+    /^<!DOCTYPE/i.test(value) ||
+    /^<html[\s>]/i.test(value) ||
+    /^<\/?[a-z][\w:-]*(\s|>|$)/i.test(value) ||
+    /^(import|export|const|let|var|function|class|interface|type)\b/.test(
+      value,
+    ) ||
+    /^(body|html|nav|main|section|article|header|footer|form|button|input|textarea|\.|#)[\w\s\-.:#[\]="'(),>+~]*\{/.test(
+      value,
+    ) ||
+    /^@[a-z-]+/i.test(value) ||
+    /=>\s*\{?$/.test(value)
   );
 }
 
 function inferCodeLanguage(value: string) {
   const trimmed = value.trim();
   if (/^<!DOCTYPE/i.test(trimmed) || /<html[\s>]/i.test(trimmed)) return "html";
-  if (/(^|\n)\s*(body|html|nav|main|section|article|header|footer|form|button|input|textarea)[^{\n]*\{/.test(trimmed)) return "css";
-  if (/(^|\n)\s*import\s.+from\s+["']/.test(trimmed) || /:\s*(string|number|boolean|React\.)/.test(trimmed)) return "tsx";
-  if (/(^|\n)\s*(const|let|var|function)\s+/.test(trimmed) || /=>/.test(trimmed)) return "javascript";
+  if (
+    /(^|\n)\s*(body|html|nav|main|section|article|header|footer|form|button|input|textarea)[^{\n]*\{/.test(
+      trimmed,
+    )
+  )
+    return "css";
+  if (
+    /(^|\n)\s*import\s.+from\s+["']/.test(trimmed) ||
+    /:\s*(string|number|boolean|React\.)/.test(trimmed)
+  )
+    return "tsx";
+  if (
+    /(^|\n)\s*(const|let|var|function)\s+/.test(trimmed) ||
+    /=>/.test(trimmed)
+  )
+    return "javascript";
   return "code";
 }
 
@@ -207,13 +274,22 @@ function splitInlineCodeTail(content: string): ContentSegment[] | null {
     const codeBlock = remaining.join("\n").trim();
     const codeIndicators = (codeBlock.match(/[{};]/g) ?? []).length;
     const markupIndicators = (codeBlock.match(/<\/?[a-z]/gi) ?? []).length;
-    const signalLines = remaining.filter((line) => looksLikeCodeLine(line)).length;
-    if (signalLines < 3 || (codeIndicators < 4 && markupIndicators < 4)) continue;
+    const signalLines = remaining.filter((line) =>
+      looksLikeCodeLine(line),
+    ).length;
+    if (signalLines < 3 || (codeIndicators < 4 && markupIndicators < 4))
+      continue;
 
     const intro = lines.slice(0, index).join("\n").trim();
     return [
-      ...(intro ? [{ type: "text", value: intro } satisfies ContentSegment] : []),
-      { type: "code", value: codeBlock, language: inferCodeLanguage(codeBlock) },
+      ...(intro
+        ? [{ type: "text", value: intro } satisfies ContentSegment]
+        : []),
+      {
+        type: "code",
+        value: codeBlock,
+        language: inferCodeLanguage(codeBlock),
+      },
     ];
   }
 
@@ -267,7 +343,10 @@ function renderRichTextBlock(content: string) {
   const flushParagraph = () => {
     if (!currentParagraph.length) return;
     blocks.push(
-      <p key={`p-${blocks.length}`} className="text-[14px] leading-relaxed text-foreground">
+      <p
+        key={`p-${blocks.length}`}
+        className="text-[14px] leading-relaxed text-foreground"
+      >
         {currentParagraph.join(" ")}
       </p>,
     );
@@ -279,7 +358,10 @@ function renderRichTextBlock(content: string) {
     blocks.push(
       <ul key={`l-${blocks.length}`} className="space-y-2">
         {currentList.map((item, index) => (
-          <li key={index} className="flex items-start gap-2 text-[14px] leading-relaxed text-foreground">
+          <li
+            key={index}
+            className="flex items-start gap-2 text-[14px] leading-relaxed text-foreground"
+          >
             <span className="mt-[7px] size-1 shrink-0 bg-primary/70" />
             <span>{item}</span>
           </li>
@@ -327,7 +409,13 @@ function renderMessageContent(content: string) {
     <div className="space-y-4">
       {segments.map((segment, index) => {
         if (segment.type === "code") {
-          return <CodeBlock key={index} code={segment.value} language={segment.language} />;
+          return (
+            <CodeBlock
+              key={index}
+              code={segment.value}
+              language={segment.language}
+            />
+          );
         }
 
         return <div key={index}>{renderRichTextBlock(segment.value)}</div>;
@@ -362,9 +450,10 @@ function getPromptVersionLabel(
   version: number,
   totalVersions: number,
 ) {
-  const variationHint = typeof message?.metadata?.variation_hint === "string"
-    ? message.metadata.variation_hint.trim()
-    : "";
+  const variationHint =
+    typeof message?.metadata?.variation_hint === "string"
+      ? message.metadata.variation_hint.trim()
+      : "";
 
   if (variationHint) {
     return totalVersions > 1
@@ -433,7 +522,9 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   );
 }
 
-function getDeepThinkingPreference(messages: RequestChatRecord["messages"] | undefined) {
+function getDeepThinkingPreference(
+  messages: RequestChatRecord["messages"] | undefined,
+) {
   if (!messages) return false;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const value = messages[index]?.metadata?.deep_thinking;
@@ -442,20 +533,39 @@ function getDeepThinkingPreference(messages: RequestChatRecord["messages"] | und
   return false;
 }
 
-function isPromptStepped(metadata: RequestChatMessageMetadata | undefined): metadata is RequestChatMessageMetadata & { prompt_steps: PromptStep[] } {
-  return Boolean(metadata && Array.isArray(metadata.prompt_steps) && metadata.prompt_steps.length > 0);
+function isPromptStepped(
+  metadata: RequestChatMessageMetadata | undefined,
+): metadata is RequestChatMessageMetadata & { prompt_steps: PromptStep[] } {
+  return Boolean(
+    metadata &&
+    Array.isArray(metadata.prompt_steps) &&
+    metadata.prompt_steps.length > 0,
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
    FINAL PROMPT PANEL — document-style, not bubble
 ═══════════════════════════════════════════════════════════════════ */
 function FinalPromptPanel({
-  content, metadata, version, totalVersions, variationHint, isLatest, isFavorite,
-  onRegenerate, isRegenerating, onViewVersion, onToggleFavorite,
+  content,
+  metadata,
+  version,
+  totalVersions,
+  variationHint,
+  isLatest,
+  isFavorite,
+  onRegenerate,
+  isRegenerating,
+  onViewVersion,
+  onToggleFavorite,
 }: {
   metadata?: RequestChatMessageMetadata;
-  content: string; version: number; totalVersions: number;
-  variationHint?: string; isLatest: boolean; isFavorite: boolean;
+  content: string;
+  version: number;
+  totalVersions: number;
+  variationHint?: string;
+  isLatest: boolean;
+  isFavorite: boolean;
   onRegenerate: (hint?: string) => void;
   isRegenerating: boolean;
   onViewVersion: (dir: "prev" | "next") => void;
@@ -472,7 +582,9 @@ function FinalPromptPanel({
     const metadataSections = metadata?.prompt_document;
     if (metadataSections && typeof metadataSections === "object") {
       return {
-        prompt: metadataSections.prompt ?? parsePromptDocumentSections(content).prompt,
+        prompt:
+          metadataSections.prompt ??
+          parsePromptDocumentSections(content).prompt,
         why: metadataSections.why ?? "",
         bestUsedWith: metadataSections.best_used_with ?? "",
         raw: metadataSections.raw ?? content.replace(/\r\n/g, "\n").trim(),
@@ -499,9 +611,14 @@ function FinalPromptPanel({
     [sections.bestUsedWith],
   );
   const cleanText = React.useMemo(
-    () => [activePromptStep?.content ?? sections.prompt, sections.why && `Why this works\n${sections.why}`, sections.bestUsedWith && `Best used with\n${sections.bestUsedWith}`]
-      .filter(Boolean)
-      .join("\n\n"),
+    () =>
+      [
+        activePromptStep?.content ?? sections.prompt,
+        sections.why && `Why this works\n${sections.why}`,
+        sections.bestUsedWith && `Best used with\n${sections.bestUsedWith}`,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     [activePromptStep?.content, sections],
   );
 
@@ -527,34 +644,39 @@ function FinalPromptPanel({
     const blob = new Blob([sections.raw], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `thynk-prompt-v${version}.md`; a.click();
+    a.href = url;
+    a.download = `thynk-prompt-v${version}.md`;
+    a.click();
     URL.revokeObjectURL(url);
   }
 
   function handleRegenSubmit() {
     onRegenerate(customHint.trim() || selectedHint || undefined);
-    setShowRegen(false); setCustomHint(""); setSelectedHint(null);
+    setShowRegen(false);
+    setCustomHint("");
+    setSelectedHint(null);
   }
 
   function handleUpdateSubmit() {
     if (!updateRequest.trim()) return;
     onRegenerate(updateRequest.trim());
-    setShowUpdateInput(false); setUpdateRequest("");
+    setShowUpdateInput(false);
+    setUpdateRequest("");
   }
 
   return (
     <div className="w-full overflow-hidden border border-primary/30 bg-card">
       {/* Document header bar */}
-      <div className="flex items-center justify-between border-b border-border bg-primary/[0.04] px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+      <div className="flex flex-col gap-2 border-b border-border bg-primary/[0.04] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
             <div className="size-1.5 rounded-full bg-primary" />
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary">
               Generated Prompt
             </span>
           </div>
           {totalVersions > 1 && (
-            <div className="flex items-center gap-1 border border-border bg-background px-2 py-0.5">
+            <div className="flex shrink-0 items-center gap-1 border border-border bg-background px-2 py-0.5">
               <History className="size-2.5 text-muted-foreground" />
               <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                 v{version}/{totalVersions}
@@ -578,19 +700,19 @@ function FinalPromptPanel({
             </div>
           )}
           {variationHint && (
-            <span className="max-w-[140px] truncate font-mono text-[9px] italic text-muted-foreground/50">
+            <span className="max-w-[120px] truncate font-mono text-[9px] italic text-muted-foreground/50 sm:max-w-[140px]">
               &quot;{variationHint}&quot;
             </span>
           )}
           {metadata?.deep_thinking && (
-            <span className="border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
+            <span className="shrink-0 border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
               Deep thinking
             </span>
           )}
         </div>
 
         {/* Action row */}
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <button
             onClick={onToggleFavorite}
             title={isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -607,26 +729,33 @@ function FinalPromptPanel({
             onClick={handleDownload}
             className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Download className="size-3" />.md
+            <Download className="size-3" />
+            .md
           </button>
         </div>
       </div>
 
       {/* Prompt content — document body */}
-      <div className="px-6 py-6">
+      <div className="px-3 py-4 sm:px-6 sm:py-6">
         <div className="space-y-6">
           <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Paste-ready prompt</p>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Paste-ready prompt
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Ready to drop into ChatGPT, Claude, Gemini, Perplexity, or any other AI tool.
+                  Ready to drop into ChatGPT, Claude, Gemini, or any AI tool.
                 </p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-1 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground">
-                    {copied ? <Check className="size-3 text-primary" /> : <Copy className="size-3" />}
+                    {copied ? (
+                      <Check className="size-3 text-primary" />
+                    ) : (
+                      <Copy className="size-3" />
+                    )}
                     {copied ? "Copied" : "Copy"}
                     <ChevronDown className="size-3" />
                   </button>
@@ -651,19 +780,26 @@ function FinalPromptPanel({
                     Step {activePromptStep.step} of {promptSteps.length}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    This prompt is split into guided parts so you can continue step by step in another AI tool.
+                    This prompt is split into guided parts so you can continue
+                    step by step in another AI tool.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setCurrentStepIndex((current) => Math.max(current - 1, 0))}
+                    onClick={() =>
+                      setCurrentStepIndex((current) => Math.max(current - 1, 0))
+                    }
                     disabled={currentStepIndex === 0}
                     className="border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => setCurrentStepIndex((current) => Math.min(current + 1, promptSteps.length - 1))}
+                    onClick={() =>
+                      setCurrentStepIndex((current) =>
+                        Math.min(current + 1, promptSteps.length - 1),
+                      )
+                    }
                     disabled={currentStepIndex >= promptSteps.length - 1}
                     className="border border-primary/30 bg-primary/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-primary transition-colors hover:bg-primary/15 disabled:opacity-35"
                   >
@@ -683,7 +819,9 @@ function FinalPromptPanel({
             <div className="grid gap-4 md:grid-cols-2">
               {sections.why && (
                 <div className="border border-border bg-background px-4 py-4">
-                  <p className="mb-2 text-sm font-medium text-foreground">Why this works</p>
+                  <p className="mb-2 text-sm font-medium text-foreground">
+                    Why this works
+                  </p>
                   <div className="whitespace-pre-wrap text-[13px] leading-[1.8] text-muted-foreground">
                     {whyDisplayText}
                   </div>
@@ -691,7 +829,9 @@ function FinalPromptPanel({
               )}
               {sections.bestUsedWith && (
                 <div className="border border-border bg-background px-4 py-4">
-                  <p className="mb-2 text-sm font-medium text-foreground">Best used with</p>
+                  <p className="mb-2 text-sm font-medium text-foreground">
+                    Best used with
+                  </p>
                   <div className="whitespace-pre-wrap text-[13px] leading-[1.8] text-muted-foreground">
                     {bestUsedWithDisplayText}
                   </div>
@@ -708,7 +848,10 @@ function FinalPromptPanel({
           {/* Update prompt-to-prompt */}
           <div className="border-b border-border/60">
             <button
-              onClick={() => { setShowUpdateInput(!showUpdateInput); setShowRegen(false); }}
+              onClick={() => {
+                setShowUpdateInput(!showUpdateInput);
+                setShowRegen(false);
+              }}
               className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
             >
               <div className="flex items-center gap-2">
@@ -717,9 +860,11 @@ function FinalPromptPanel({
                   Request update to this prompt
                 </span>
               </div>
-              {showUpdateInput
-                ? <ChevronUp className="size-3.5 text-muted-foreground/40" />
-                : <ChevronDown className="size-3.5 text-muted-foreground/40" />}
+              {showUpdateInput ? (
+                <ChevronUp className="size-3.5 text-muted-foreground/40" />
+              ) : (
+                <ChevronDown className="size-3.5 text-muted-foreground/40" />
+              )}
             </button>
             {showUpdateInput && (
               <div className="border-t border-border bg-muted/20 px-4 pb-4 pt-3">
@@ -731,17 +876,24 @@ function FinalPromptPanel({
                   placeholder="e.g. Make the tone more authoritative, add a section on metrics, simplify the intro…"
                   value={updateRequest}
                   onChange={(e) => setUpdateRequest(e.target.value)}
-                  onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleUpdateSubmit(); }}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
+                      handleUpdateSubmit();
+                  }}
                   className="mb-3 w-full resize-none border border-border bg-background px-3 py-2.5 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 <div className="flex items-center justify-between">
-                  <p className="font-mono text-[9px] text-muted-foreground/50">⌘+Enter to apply</p>
+                  <p className="font-mono text-[9px] text-muted-foreground/50">
+                    ⌘+Enter to apply
+                  </p>
                   <button
                     onClick={handleUpdateSubmit}
                     disabled={!updateRequest.trim() || isRegenerating}
                     className="flex items-center gap-1.5 border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20 disabled:opacity-40"
                   >
-                    <RefreshCw className={`size-3 ${isRegenerating ? "animate-spin" : ""}`} />
+                    <RefreshCw
+                      className={`size-3 ${isRegenerating ? "animate-spin" : ""}`}
+                    />
                     Apply
                   </button>
                 </div>
@@ -751,18 +903,27 @@ function FinalPromptPanel({
 
           {/* New variation */}
           <button
-            onClick={() => { setShowRegen(!showRegen); setShowUpdateInput(false); }}
+            onClick={() => {
+              setShowRegen(!showRegen);
+              setShowUpdateInput(false);
+            }}
             className="flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors hover:bg-muted/30"
           >
             <div className="flex items-center gap-2">
-              <RefreshCw className={`size-3 text-muted-foreground ${isRegenerating ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`size-3 text-muted-foreground ${isRegenerating ? "animate-spin" : ""}`}
+              />
               <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
-                {isRegenerating ? "Synthesising variation…" : "Generate new variation"}
+                {isRegenerating
+                  ? "Synthesising variation…"
+                  : "Generate new variation"}
               </span>
             </div>
-            {showRegen
-              ? <ChevronUp className="size-3.5 text-muted-foreground/40" />
-              : <ChevronDown className="size-3.5 text-muted-foreground/40" />}
+            {showRegen ? (
+              <ChevronUp className="size-3.5 text-muted-foreground/40" />
+            ) : (
+              <ChevronDown className="size-3.5 text-muted-foreground/40" />
+            )}
           </button>
 
           {showRegen && !isRegenerating && (
@@ -774,7 +935,9 @@ function FinalPromptPanel({
                 {VARIATION_HINTS.map((h) => (
                   <button
                     key={h.value}
-                    onClick={() => setSelectedHint(selectedHint === h.value ? null : h.value)}
+                    onClick={() =>
+                      setSelectedHint(selectedHint === h.value ? null : h.value)
+                    }
                     className={`border px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider transition-colors ${
                       selectedHint === h.value
                         ? "border-primary/40 bg-primary/10 text-primary"
@@ -796,7 +959,9 @@ function FinalPromptPanel({
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="font-mono text-[9px] text-muted-foreground/50">
-                    {totalVersions > 1 ? `${totalVersions} versions total` : "First version"}
+                    {totalVersions > 1
+                      ? `${totalVersions} versions total`
+                      : "First version"}
                   </p>
                   {metadata?.deep_thinking && (
                     <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary/70">
@@ -808,7 +973,8 @@ function FinalPromptPanel({
                   onClick={handleRegenSubmit}
                   className="flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
                 >
-                  Generate<ArrowRight className="size-3" />
+                  Generate
+                  <ArrowRight className="size-3" />
                 </button>
               </div>
             </div>
@@ -831,17 +997,25 @@ interface StructuredResponse {
 function isClarificationPayload(value: unknown): value is ClarificationPayload {
   if (!value || typeof value !== "object") return false;
   const payload = value as Partial<ClarificationPayload>;
-  return Array.isArray(payload.questions) && typeof payload.next_action === "string";
+  return (
+    Array.isArray(payload.questions) && typeof payload.next_action === "string"
+  );
 }
 
 function parseAiQuestion(content: string): StructuredResponse | null {
   // Extract JSON block (may be wrapped in markdown code fences)
-  const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) ?? content.match(/(\{[\s\S]*\})/);
+  const jsonMatch =
+    content.match(/```(?:json)?\s*([\s\S]*?)```/) ??
+    content.match(/(\{[\s\S]*\})/);
   const raw = jsonMatch ? jsonMatch[1] : content;
 
   try {
     const parsed = JSON.parse(raw.trim());
-    if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+    if (
+      parsed &&
+      Array.isArray(parsed.questions) &&
+      parsed.questions.length > 0
+    ) {
       return parsed as StructuredResponse;
     }
   } catch {
@@ -890,15 +1064,26 @@ function AiQuestionBlock({
           placeholder="Type your answer…"
           value={openValue}
           onChange={(e) => setOpenValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && openValue.trim()) { onAnswer(openValue.trim()); setOpenValue(""); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && openValue.trim()) {
+              onAnswer(openValue.trim());
+              setOpenValue("");
+            }
+          }}
           className="flex-1 border border-border bg-background px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button
-          onClick={() => { if (openValue.trim()) { onAnswer(openValue.trim()); setOpenValue(""); } }}
+          onClick={() => {
+            if (openValue.trim()) {
+              onAnswer(openValue.trim());
+              setOpenValue("");
+            }
+          }}
           disabled={!openValue.trim()}
           className="flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20 disabled:opacity-40"
         >
-          <ArrowRight className="size-3" />Send
+          <ArrowRight className="size-3" />
+          Send
         </button>
       </div>
     );
@@ -908,8 +1093,11 @@ function AiQuestionBlock({
     return (
       <div className="flex gap-2">
         {["Yes", "No"].map((opt) => (
-          <button key={opt} onClick={() => onAnswer(opt)}
-            className="border border-border bg-card px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
+          <button
+            key={opt}
+            onClick={() => onAnswer(opt)}
+            className="border border-border bg-card px-5 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+          >
             {opt}
           </button>
         ))}
@@ -923,15 +1111,33 @@ function AiQuestionBlock({
         {question.options.map((opt, i) => {
           const isSelected = selected.has(i);
           return (
-            <button key={i}
-              onClick={() => question.type === "multi" ? handleMultiToggle(i) : onAnswer(opt)}
+            <button
+              key={i}
+              onClick={() =>
+                question.type === "multi" ? handleMultiToggle(i) : onAnswer(opt)
+              }
               className={`group flex items-center gap-2 border px-3 py-2 text-left transition-all ${
-                isSelected ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
-              }`}>
-              <span className={`flex size-4 shrink-0 items-center justify-center border font-mono text-[9px] transition-colors ${
-                isSelected ? "border-primary/40 bg-primary/15 text-primary" : "border-border text-muted-foreground/50 group-hover:border-primary/20"
-              }`}>
-                {question.type === "multi" ? (isSelected ? <Check className="size-2.5" /> : String.fromCharCode(65 + i)) : String.fromCharCode(65 + i)}
+                isSelected
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
+              }`}
+            >
+              <span
+                className={`flex size-4 shrink-0 items-center justify-center border font-mono text-[9px] transition-colors ${
+                  isSelected
+                    ? "border-primary/40 bg-primary/15 text-primary"
+                    : "border-border text-muted-foreground/50 group-hover:border-primary/20"
+                }`}
+              >
+                {question.type === "multi" ? (
+                  isSelected ? (
+                    <Check className="size-2.5" />
+                  ) : (
+                    String.fromCharCode(65 + i)
+                  )
+                ) : (
+                  String.fromCharCode(65 + i)
+                )}
               </span>
               <span className="text-[12px] leading-snug">{opt}</span>
             </button>
@@ -939,9 +1145,17 @@ function AiQuestionBlock({
         })}
       </div>
       {question.type === "multi" && selected.size > 0 && (
-        <button onClick={() => { const answers = [...selected].map((i) => question.options[i]).join(", "); if (answers) onAnswer(answers); }}
-          className="mt-3 flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20">
-          <ArrowRight className="size-3" />Confirm ({selected.size} selected)
+        <button
+          onClick={() => {
+            const answers = [...selected]
+              .map((i) => question.options[i])
+              .join(", ");
+            if (answers) onAnswer(answers);
+          }}
+          className="mt-3 flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition-colors hover:bg-primary/20"
+        >
+          <ArrowRight className="size-3" />
+          Confirm ({selected.size} selected)
         </button>
       )}
     </div>
@@ -951,7 +1165,11 @@ function AiQuestionBlock({
 /* ═══════════════════════════════════════════════════════════════════
    IMAGE LIGHTBOX MODAL
 ═══════════════════════════════════════════════════════════════════ */
-function ImageLightbox({ urls, startIndex, onClose }: {
+function ImageLightbox({
+  urls,
+  startIndex,
+  onClose,
+}: {
   urls: string[];
   startIndex: number;
   onClose: () => void;
@@ -962,7 +1180,8 @@ function ImageLightbox({ urls, startIndex, onClose }: {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft") setCurrent((i) => Math.max(0, i - 1));
-      if (e.key === "ArrowRight") setCurrent((i) => Math.min(urls.length - 1, i + 1));
+      if (e.key === "ArrowRight")
+        setCurrent((i) => Math.min(urls.length - 1, i + 1));
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -991,7 +1210,10 @@ function ImageLightbox({ urls, startIndex, onClose }: {
       {/* Prev */}
       {current > 0 && (
         <button
-          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i - 1); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setCurrent((i) => i - 1);
+          }}
           className="absolute left-4 flex size-9 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronDown className="size-4 rotate-90" />
@@ -999,7 +1221,10 @@ function ImageLightbox({ urls, startIndex, onClose }: {
       )}
 
       {/* Image */}
-      <div className="flex max-h-[85vh] max-w-[90vw] items-center justify-center" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex max-h-[85vh] max-w-[90vw] items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={urls[current]}
@@ -1011,7 +1236,10 @@ function ImageLightbox({ urls, startIndex, onClose }: {
       {/* Next */}
       {current < urls.length - 1 && (
         <button
-          onClick={(e) => { e.stopPropagation(); setCurrent((i) => i + 1); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setCurrent((i) => i + 1);
+          }}
           className="absolute right-4 flex size-9 items-center justify-center border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronDown className="size-4 -rotate-90" />
@@ -1027,9 +1255,14 @@ function ImageLightbox({ urls, startIndex, onClose }: {
               key={i}
               src={url}
               alt={`thumb ${i + 1}`}
-              onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrent(i);
+              }}
               className={`h-12 w-16 cursor-pointer border object-cover transition-all ${
-                i === current ? "border-primary opacity-100" : "border-border opacity-50 hover:opacity-80"
+                i === current
+                  ? "border-primary opacity-100"
+                  : "border-border opacity-50 hover:opacity-80"
               }`}
             />
           ))}
@@ -1043,15 +1276,27 @@ function ImageLightbox({ urls, startIndex, onClose }: {
    CONVERSATION BLOCK — v0.dev document style, not chat bubbles
    Each exchange (user input → AI response) is a clean section
 ═══════════════════════════════════════════════════════════════════ */
-function UserBlock({ content, time, imageUrls }: { content: string; time: string; imageUrls?: string[] }) {
+function UserBlock({
+  content,
+  time,
+  imageUrls,
+}: {
+  content: string;
+  time: string;
+  imageUrls?: string[];
+}) {
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
 
   return (
     <div className="py-3">
       <div className="mb-1.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">You</span>
-          <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground/50">
+            You
+          </span>
+          <span className="font-mono text-[9px] text-muted-foreground/30">
+            {time}
+          </span>
         </div>
         <MessageCopyButton value={content} />
       </div>
@@ -1066,7 +1311,11 @@ function UserBlock({ content, time, imageUrls }: { content: string; time: string
                 title="Click to view full size"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt={`attachment ${i + 1}`} className="h-full w-auto object-cover" />
+                <img
+                  src={url}
+                  alt={`attachment ${i + 1}`}
+                  className="h-full w-auto object-cover"
+                />
                 <div className="absolute inset-0 flex items-center justify-center bg-background/0 transition-colors group-hover:bg-background/30">
                   <Search className="size-4 text-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
@@ -1104,7 +1353,10 @@ function AiBlock({
     [content, metadata],
   );
   const followUpSections = React.useMemo(
-    () => (metadata?.type === "follow_up_answer" ? parseStructuredAnswerSections(content) : null),
+    () =>
+      metadata?.type === "follow_up_answer"
+        ? parseStructuredAnswerSections(content)
+        : null,
     [content, metadata],
   );
 
@@ -1114,9 +1366,13 @@ function AiBlock({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <Zap className="size-2.5 text-primary" />
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary/70">Thynk</span>
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-primary/70">
+              Thynk
+            </span>
           </div>
-          <span className="font-mono text-[9px] text-muted-foreground/30">{time}</span>
+          <span className="font-mono text-[9px] text-muted-foreground/30">
+            {time}
+          </span>
         </div>
         <MessageCopyButton value={content} />
       </div>
@@ -1125,8 +1381,13 @@ function AiBlock({
         <div className="space-y-5">
           {structured.questions[0] && (
             <div>
-              <p className="mb-2.5 text-[14px] font-medium text-foreground">{structured.questions[0].question}</p>
-              <AiQuestionBlock question={structured.questions[0]} onAnswer={onOptionSelect} />
+              <p className="mb-2.5 text-[14px] font-medium text-foreground">
+                {structured.questions[0].question}
+              </p>
+              <AiQuestionBlock
+                question={structured.questions[0]}
+                onAnswer={onOptionSelect}
+              />
             </div>
           )}
         </div>
@@ -1167,7 +1428,10 @@ function AiBlock({
 /* ═══════════════════════════════════════════════════════════════════
    TEMPLATES PANEL — community prompts (final outputs)
 ═══════════════════════════════════════════════════════════════════ */
-function TemplatesPanel({ onUse, onClose }: {
+function TemplatesPanel({
+  onUse,
+  onClose,
+}: {
   onUse: (content: string) => void;
   onClose: () => void;
 }) {
@@ -1188,28 +1452,44 @@ function TemplatesPanel({ onUse, onClose }: {
 
   const filtered = templates.filter((t) => {
     const q = search.toLowerCase();
-    return t.is_active
-      && (activeCategory === "all" || t.category === activeCategory)
-      && (!q || t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
+    return (
+      t.is_active &&
+      (activeCategory === "all" || t.category === activeCategory) &&
+      (!q ||
+        t.title.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q))
+    );
   });
 
   return (
-    <div className="flex h-full flex-col border-l border-border bg-card">
+    <div className="flex h-full flex-col bg-card lg:border-l lg:border-border">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div>
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <button
+          onClick={onClose}
+          className="flex size-8 shrink-0 items-center justify-center border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+          aria-label="Close library"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <BookOpen className="size-3 text-primary" />
+            <BookOpen className="size-3 shrink-0 text-primary" />
             <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
               Prompt Library
             </span>
           </div>
-          <p className="mt-0.5 text-[13px] font-medium text-foreground">Community Prompts</p>
-          <p className="text-[11px] text-muted-foreground/60">Use any prompt as your starting point</p>
+          <p className="mt-0.5 truncate text-[13px] font-medium text-foreground">
+            Community Prompts
+          </p>
+          <p className="text-[11px] text-muted-foreground/60">
+            Use any prompt as your starting point
+          </p>
         </div>
         <button
           onClick={onClose}
-          className="flex size-7 items-center justify-center text-muted-foreground hover:text-foreground"
+          className="hidden size-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground lg:flex"
+          aria-label="Close library"
         >
           <X className="size-4" />
         </button>
@@ -1224,18 +1504,18 @@ function TemplatesPanel({ onUse, onClose }: {
             placeholder="Search prompts…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full border border-border bg-background py-2 pl-8 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full border border-border bg-background py-2.5 pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring lg:py-2 lg:text-[12px]"
           />
         </div>
       </div>
 
       {/* Category tabs */}
-      <div className="flex gap-1.5 overflow-x-auto border-b border-border px-4 py-2.5">
+      <div className="flex gap-1.5 overflow-x-auto border-b border-border px-4 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categories.map((cat) => (
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`shrink-0 border px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider transition-colors ${
+            className={`shrink-0 border px-3 py-1.5 font-mono text-[9px] uppercase tracking-wider transition-colors lg:px-2.5 lg:py-1 ${
               activeCategory === cat
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -1250,10 +1530,17 @@ function TemplatesPanel({ onUse, onClose }: {
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="space-y-3 p-4">
-            {[1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse border border-border bg-muted/30" />)}
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-24 animate-pulse border border-border bg-muted/30"
+              />
+            ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="p-8 text-center text-[12px] text-muted-foreground">No prompts found.</p>
+          <p className="p-8 text-center text-[12px] text-muted-foreground">
+            No prompts found.
+          </p>
         ) : (
           filtered.map((t) => {
             const isOpen = expanded === t.id;
@@ -1261,19 +1548,23 @@ function TemplatesPanel({ onUse, onClose }: {
               <div key={t.id} className="border-b border-border">
                 <button
                   onClick={() => setExpanded(isOpen ? null : t.id)}
-                  className="group w-full px-4 py-3.5 text-left transition-colors hover:bg-muted/40"
+                  className="group w-full px-4 py-4 text-left transition-colors hover:bg-muted/40 lg:py-3.5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center gap-2">
-                        <p className="truncate text-[12px] font-medium text-foreground">{t.title}</p>
+                        <p className="truncate text-[13px] font-medium text-foreground lg:text-[12px]">
+                          {t.title}
+                        </p>
                         {t.is_premium && (
                           <span className="shrink-0 border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider text-primary">
                             Pro
                           </span>
                         )}
                       </div>
-                      <p className="line-clamp-2 text-[11px] text-muted-foreground">{t.description}</p>
+                      <p className="line-clamp-2 text-[12px] text-muted-foreground lg:text-[11px]">
+                        {t.description}
+                      </p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {t.tags.slice(0, 3).map((tag) => (
                           <span
@@ -1285,27 +1576,29 @@ function TemplatesPanel({ onUse, onClose }: {
                         ))}
                       </div>
                     </div>
-                    <ChevronRight className={`mt-0.5 size-3.5 shrink-0 text-muted-foreground/40 transition-transform ${isOpen ? "rotate-90" : "group-hover:translate-x-0.5"}`} />
+                    <ChevronRight
+                      className={`mt-0.5 size-3.5 shrink-0 text-muted-foreground/40 transition-transform ${isOpen ? "rotate-90" : "group-hover:translate-x-0.5"}`}
+                    />
                   </div>
                 </button>
 
                 {/* Expanded preview + use button */}
                 {isOpen && (
-                  <div className="border-t border-border bg-muted/20 px-4 pb-4 pt-3">
+                  <div className="border-t border-border bg-muted/20 px-4 pb-5 pt-3 lg:pb-4">
                     <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.15em] text-muted-foreground">
                       Prompt Preview
                     </p>
-                    <div className="mb-3 max-h-40 overflow-y-auto border border-border bg-background p-3">
-                      <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-foreground/70">
+                    <div className="mb-3 max-h-48 overflow-y-auto border border-border bg-background p-3 lg:max-h-40">
+                      <pre className="whitespace-pre-wrap font-sans text-[12px] leading-relaxed text-foreground/70 lg:text-[11px]">
                         {t.template_content}
                       </pre>
                     </div>
                     <button
                       onClick={() => onUse(t.template_content)}
-                      className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90"
+                      className="flex w-full items-center justify-center gap-2 bg-primary px-4 py-3 font-mono text-[11px] uppercase tracking-wider text-primary-foreground transition-opacity hover:opacity-90 lg:py-2.5"
                     >
                       <CornerDownRight className="size-3.5" />
-                      Use this prompt — clone to workspace
+                      Use this prompt
                     </button>
                     <p className="mt-2 text-center font-mono text-[9px] text-muted-foreground/50">
                       Opens as a new chat starting from this prompt
@@ -1324,7 +1617,15 @@ function TemplatesPanel({ onUse, onClose }: {
 /* ═══════════════════════════════════════════════════════════════════
    CHAT ENTRY HERO
 ═══════════════════════════════════════════════════════════════════ */
-const CATEGORIES = ["design", "development", "student", "content", "marketing", "writing", "business"] as const;
+const CATEGORIES = [
+  "design",
+  "development",
+  "student",
+  "content",
+  "marketing",
+  "writing",
+  "business",
+] as const;
 
 function DeepThinkingToggle({
   enabled,
@@ -1339,19 +1640,21 @@ function DeepThinkingToggle({
 }) {
   if (!canUse) {
     return (
-      <div className={`flex items-center gap-2 border border-border bg-muted/20 ${compact ? "px-2 py-1" : "px-3 py-2"}`}>
-        <Brain className="size-3.5 text-muted-foreground/55" />
-        <div className="min-w-0">
+      <div
+        className={`flex min-w-0 items-center gap-2 border border-border bg-muted/20 ${compact ? "px-2 py-1" : "px-3 py-2"}`}
+      >
+        <Brain className="size-3.5 shrink-0 text-muted-foreground/55" />
+        <div className="min-w-0 flex-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
             Deep thinking
           </p>
           {!compact && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Available on paid plans for more thorough prompt depth.
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              Available on paid plans.
             </p>
           )}
         </div>
-        <span className="border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
+        <span className="ml-auto shrink-0 border border-border bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
           Pro
         </span>
       </div>
@@ -1362,27 +1665,26 @@ function DeepThinkingToggle({
     <button
       type="button"
       onClick={onToggle}
-      className={`flex min-w-0 items-center gap-2 border transition-colors ${
+      className={`flex min-w-0 w-full items-center gap-2 border transition-colors ${
         enabled
           ? "border-primary/30 bg-primary/10 text-primary"
           : "border-border bg-background text-muted-foreground hover:text-foreground"
       } ${compact ? "px-2.5 py-1.5" : "px-3 py-2"}`}
     >
-      <Brain className="size-3.5" />
-      <div className="min-w-0 text-left">
+      <Brain className="size-3.5 shrink-0" />
+      <div className="min-w-0 flex-1 text-left">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em]">
           Deep thinking
         </p>
         {!compact && (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Generate a more extensive, step-aware prompt with stronger professional detail.
+            More extensive, step-aware prompt with stronger depth.
           </p>
         )}
       </div>
       {enabled && (
-        <span className="ml-auto border border-primary/20 bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
-          <span className="hidden sm:inline">On</span>
-          <span className="sm:hidden">Live</span>
+        <span className="ml-auto shrink-0 border border-primary/20 bg-background px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
+          On
         </span>
       )}
     </button>
@@ -1417,7 +1719,9 @@ function ChatEntryHero({
   onToggleDeepThinking: () => void;
 }) {
   const [category, setCategory] = React.useState("design");
-  const [entryImages, setEntryImages] = React.useState<{ file: File; preview: string }[]>([]);
+  const [entryImages, setEntryImages] = React.useState<
+    { file: File; preview: string }[]
+  >([]);
   const [entryUploading, setEntryUploading] = React.useState(false);
   const [entryDragging, setEntryDragging] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
@@ -1426,7 +1730,8 @@ function ChatEntryHero({
   const entryDragCounter = React.useRef(0);
 
   const isAtLimit = limit > 0 && promptsLeft <= 0;
-  const pct = limit > 0 ? Math.min(((limit - promptsLeft) / limit) * 100, 100) : 0;
+  const pct =
+    limit > 0 ? Math.min(((limit - promptsLeft) / limit) * 100, 100) : 0;
   const isNear = pct >= 80;
   const isFree = planSlug === "free";
   const canUseDeepThinking = !isFree;
@@ -1442,7 +1747,12 @@ function ChatEntryHero({
     setEntryImages((prev) => {
       const slots = 4 - prev.length;
       if (slots <= 0) return prev;
-      return [...prev, ...imgs.slice(0, slots).map((f) => ({ file: f, preview: URL.createObjectURL(f) }))];
+      return [
+        ...prev,
+        ...imgs
+          .slice(0, slots)
+          .map((f) => ({ file: f, preview: URL.createObjectURL(f) })),
+      ];
     });
   }
 
@@ -1488,22 +1798,31 @@ function ChatEntryHero({
       if (entryImages.length > 0) {
         setEntryUploading(true);
         try {
-          imageUrls = await Promise.all(entryImages.map((a) => uploadToCloudinary(a.file)));
+          imageUrls = await Promise.all(
+            entryImages.map((a) => uploadToCloudinary(a.file)),
+          );
         } finally {
           setEntryUploading(false);
         }
       }
-      return createRequestChat({
-        title,
-        category,
-        message: initialPrompt.trim(),
-        image_urls: imageUrls,
-        deep_thinking: deepThinkingEnabled,
-      }, token);
+      return createRequestChat(
+        {
+          title,
+          category,
+          message: initialPrompt.trim(),
+          image_urls: imageUrls,
+          deep_thinking: deepThinkingEnabled,
+        },
+        token,
+      );
     },
     onMutate: () => toast.loading("Starting workspace…", { id: "entry-chat" }),
-    onSuccess: (chat) => { toast.success("Workspace ready", { id: "entry-chat" }); onCreated(chat); },
-    onError: () => toast.error("Failed to start workspace", { id: "entry-chat" }),
+    onSuccess: (chat) => {
+      toast.success("Workspace ready", { id: "entry-chat" });
+      onCreated(chat);
+    },
+    onError: () =>
+      toast.error("Failed to start workspace", { id: "entry-chat" }),
   });
 
   const isPending = mutation.isPending || entryUploading;
@@ -1516,7 +1835,7 @@ function ChatEntryHero({
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-4 py-8 md:px-6 md:py-12">
+    <div className="flex min-h-full flex-col items-center justify-center px-3 py-8 sm:px-4 md:px-6 md:py-12">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -1528,37 +1847,43 @@ function ChatEntryHero({
         }}
       />
 
-      <div className={`relative z-10 flex w-full flex-col gap-5 ${expanded ? "max-w-[1200px]" : "max-w-[720px]"}`}>
+      <div
+        className={`relative z-10 flex w-full flex-col gap-5 ${expanded ? "max-w-[1200px]" : "max-w-[720px]"}`}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              Workspace
-            </p>
             <h1 className="mt-2 text-[clamp(1.55rem,4.2vw,2.35rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-foreground">
               Start with the brief.
             </h1>
             <p className="mt-2 max-w-[560px] text-[14px] leading-7 text-muted-foreground">
-              Write naturally, attach images when they help, and shape the prompt from there.
+              Write naturally, attach images when they help, and shape the
+              prompt from there.
             </p>
           </div>
 
-          <div className="grid gap-2 sm:min-w-[290px]">
+          <div className="w-full sm:min-w-[290px] sm:max-w-sm">
             <div className="grid grid-cols-3 border border-border bg-card">
-              <div className="border-r border-border px-3 py-2">
-                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Weekly</p>
-                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+              <div className="border-r border-border px-2 py-2 sm:px-3">
+                <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground sm:text-[9px] sm:tracking-[0.14em]">
+                  Weekly
+                </p>
+                <p className="mt-1 font-mono text-[11px] font-semibold tabular-nums text-foreground sm:text-[12px]">
                   {subscriptionGenerationsRemaining.toLocaleString()}
                 </p>
               </div>
-              <div className="border-r border-border px-3 py-2">
-                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Granted</p>
-                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+              <div className="border-r border-border px-2 py-2 sm:px-3">
+                <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground sm:text-[9px] sm:tracking-[0.14em]">
+                  Granted
+                </p>
+                <p className="mt-1 font-mono text-[11px] font-semibold tabular-nums text-foreground sm:text-[12px]">
                   {grantedCreditsRemaining.toLocaleString()}
                 </p>
               </div>
-              <div className="px-3 py-2">
-                <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Total</p>
-                <p className="mt-1 font-mono text-[12px] font-semibold tabular-nums text-foreground">
+              <div className="px-2 py-2 sm:px-3">
+                <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-muted-foreground sm:text-[9px] sm:tracking-[0.14em]">
+                  Total
+                </p>
+                <p className="mt-1 font-mono text-[11px] font-semibold tabular-nums text-foreground sm:text-[12px]">
                   {totalPointsRemaining.toLocaleString()}
                 </p>
               </div>
@@ -1593,37 +1918,51 @@ function ChatEntryHero({
               <div className="flex items-center justify-center rounded-full border-2 border-dashed border-primary/50 p-4">
                 <ImagePlus className="size-6 text-primary/70" />
               </div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary/70">Drop to attach</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-primary/70">
+                Drop to attach
+              </p>
               <p className="font-mono text-[9px] text-muted-foreground/50">
-                {4 - entryImages.length} slot{4 - entryImages.length !== 1 ? "s" : ""} remaining
+                {4 - entryImages.length} slot
+                {4 - entryImages.length !== 1 ? "s" : ""} remaining
               </p>
             </div>
           )}
 
           {/* Titlebar */}
-          <div className="flex items-center gap-2.5 border-b border-border bg-muted/30 px-4 py-2.5">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-2.5 sm:gap-2.5 sm:px-4">
+            <div className="flex shrink-0 items-center gap-1.5">
               <span className="size-2.5 rounded-full bg-muted-foreground/20" />
               <span className="size-2.5 rounded-full bg-muted-foreground/20" />
-              <span className={`size-2.5 rounded-full transition-colors duration-300 ${isPending ? "animate-pulse bg-primary" : "bg-primary/60"}`} />
+              <span
+                className={`size-2.5 rounded-full transition-colors duration-300 ${isPending ? "animate-pulse bg-primary" : "bg-primary/60"}`}
+              />
             </div>
-            <Zap className="size-3 text-primary" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            <Zap className="size-3 shrink-0 text-primary" />
+            <span className="min-w-0 truncate font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground sm:text-[10px] sm:tracking-[0.18em]">
               New prompt workspace
             </span>
-            <button
-              onClick={() => setExpanded((value) => !value)}
-              className="ml-auto flex items-center gap-1 border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {expanded ? <Minimize2 className="size-2.5" /> : <Maximize2 className="size-2.5" />}
-              {expanded ? "Compact" : "Expand"}
-            </button>
-            <button
-              onClick={onShowTemplates}
-              className="flex items-center gap-1 border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <BookOpen className="size-2.5" />Library
-            </button>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => setExpanded((value) => !value)}
+                className="flex items-center gap-1 border border-border bg-background px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:px-2.5"
+              >
+                {expanded ? (
+                  <Minimize2 className="size-2.5" />
+                ) : (
+                  <Maximize2 className="size-2.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {expanded ? "Compact" : "Expand"}
+                </span>
+              </button>
+              <button
+                onClick={onShowTemplates}
+                className="flex items-center gap-1 border border-border bg-background px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:px-2.5"
+              >
+                <BookOpen className="size-2.5" />
+                <span>Library</span>
+              </button>
+            </div>
           </div>
 
           <div className="border-b border-border px-4 py-3">
@@ -1638,9 +1977,16 @@ function ChatEntryHero({
           {entryImages.length > 0 && (
             <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
               {entryImages.map((img, idx) => (
-                <div key={idx} className="group relative size-16 overflow-hidden border border-border">
+                <div
+                  key={idx}
+                  className="group relative size-16 overflow-hidden border border-border"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.preview} alt={`attachment ${idx + 1}`} className="size-full object-cover" />
+                  <img
+                    src={img.preview}
+                    alt={`attachment ${idx + 1}`}
+                    className="size-full object-cover"
+                  />
                   <button
                     onClick={() => removeEntryImage(idx)}
                     className="absolute inset-0 flex items-center justify-center bg-background/75 opacity-0 transition-opacity group-hover:opacity-100"
@@ -1661,7 +2007,10 @@ function ChatEntryHero({
           )}
 
           {/* Textarea */}
-          <div className="cursor-text px-5 pb-2 pt-5 md:px-6 md:pt-6" onClick={() => textareaRef.current?.focus()}>
+          <div
+            className="cursor-text px-3 pb-2 pt-4 sm:px-5 sm:pt-5 md:px-6 md:pt-6"
+            onClick={() => textareaRef.current?.focus()}
+          >
             <textarea
               ref={textareaRef}
               rows={expanded ? 12 : 4}
@@ -1673,15 +2022,19 @@ function ChatEntryHero({
               disabled={isPending}
             />
             <p className="mt-1 text-[11px] text-muted-foreground/40">
-              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground">⌘</kbd>
+              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground">
+                ⌘
+              </kbd>
               {"+"}
-              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground">↵</kbd>
-              {" "}to start · Drop images anywhere on this card
+              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[9px] text-muted-foreground">
+                ↵
+              </kbd>{" "}
+              to start · Drop images anywhere on this card
             </p>
           </div>
 
           {/* Toolbar */}
-          <div className="flex flex-col gap-3 border-t border-border px-5 py-3 md:flex-row md:items-center md:justify-between md:px-6">
+          <div className="flex flex-col gap-3 border-t border-border px-3 py-3 sm:px-5 md:flex-row md:items-center md:justify-between md:px-6">
             <div className="flex flex-wrap items-center gap-2">
               {/* Category select */}
               <div className="relative">
@@ -1692,12 +2045,20 @@ function ChatEntryHero({
                   className="appearance-none cursor-pointer border border-border bg-background py-1.5 pl-3 pr-7 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted focus:outline-none disabled:opacity-50"
                 >
                   {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                    <option key={c} value={c}>
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </option>
                   ))}
                 </select>
                 <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/40">
                   <svg width="8" height="5" viewBox="0 0 8 5" fill="none">
-                    <path d="M1 1l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M1 1l3 3 3-3"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </span>
               </div>
@@ -1715,7 +2076,9 @@ function ChatEntryHero({
                 type="button"
                 onClick={() => entryFileRef.current?.click()}
                 disabled={isPending || entryImages.length >= 4}
-                title={entryImages.length >= 4 ? "Maximum 4 images" : "Attach image"}
+                title={
+                  entryImages.length >= 4 ? "Maximum 4 images" : "Attach image"
+                }
                 className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
               >
                 <ImagePlus className="size-3.5" />
@@ -1723,18 +2086,28 @@ function ChatEntryHero({
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-3 md:justify-end">
+            <div className="flex items-center justify-end gap-3">
               <p className="hidden text-[11px] text-muted-foreground/50 md:block">
-                {expanded ? "Use expanded mode when you need room for longer briefs." : "Switch to expanded mode when you need more room."}
+                {expanded
+                  ? "Use expanded mode when you need room for longer briefs."
+                  : "Switch to expanded mode when you need more room."}
               </p>
               <button
                 onClick={() => mutation.mutate()}
                 disabled={!initialPrompt.trim() || isPending || isAtLimit}
-                className="flex min-h-10 items-center gap-2 bg-primary px-5 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="flex w-full min-h-10 items-center justify-center gap-2 bg-primary px-5 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40 md:w-auto"
               >
-                {isPending
-                  ? <><RefreshCw className="size-3.5 animate-spin" />{entryUploading ? "Uploading…" : "Starting…"}</>
-                  : <><Send className="size-3.5" />Start workspace</>}
+                {isPending ? (
+                  <>
+                    <RefreshCw className="size-3.5 animate-spin" />
+                    {entryUploading ? "Uploading…" : "Starting…"}
+                  </>
+                ) : (
+                  <>
+                    <Send className="size-3.5" />
+                    Start workspace
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1743,13 +2116,16 @@ function ChatEntryHero({
         {isAtLimit && (
           <p className="mt-3 text-center text-[12px] text-destructive">
             Prompt limit reached.{" "}
-            <a href="/pricing" className="underline hover:opacity-80">Upgrade to Pro</a>
+            <a href="/pricing" className="underline hover:opacity-80">
+              Upgrade to Pro
+            </a>
             {isFree && " or wait for your weekly reset."}
           </p>
         )}
         {mutation.isError && (
           <p className="mt-2 text-center text-[12px] text-destructive">
-            {(mutation.error as { message?: string })?.message ?? "Failed to start workspace."}
+            {(mutation.error as { message?: string })?.message ??
+              "Failed to start workspace."}
           </p>
         )}
       </div>
@@ -1760,35 +2136,50 @@ function ChatEntryHero({
 /* ═══════════════════════════════════════════════════════════════════
    CHAT LIST PANEL
 ═══════════════════════════════════════════════════════════════════ */
-function ChatListPanel({ chats, activeChatId, onSelect, onNew, onDelete, onClearAll }: {
-  chats: RequestChatRecord[]; activeChatId: string | null;
-  onSelect: (id: string) => void; onNew: () => void;
+function ChatListPanel({
+  chats,
+  activeChatId,
+  onSelect,
+  onNew,
+  onDelete,
+  onClearAll,
+}: {
+  chats: RequestChatRecord[];
+  activeChatId: string | null;
+  onSelect: (id: string) => void;
+  onNew: () => void;
   onDelete: (chat: RequestChatRecord) => void;
   onClearAll: () => void;
 }) {
   const [search, setSearch] = React.useState("");
-  const filtered = chats.filter((c) => !search || c.title.toLowerCase().includes(search.toLowerCase()));
+  const filtered = chats.filter(
+    (c) => !search || c.title.toLowerCase().includes(search.toLowerCase()),
+  );
   const hasChats = chats.length > 0;
 
   return (
     <aside className="flex h-full flex-col border-r border-border bg-card">
       <div className="border-b border-border px-4 py-3">
         <div className="mb-3 flex items-center justify-between">
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Workspaces</span>
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+            Workspaces
+          </span>
           <div className="flex items-center gap-1.5">
             {hasChats ? (
               <button
                 onClick={onClearAll}
                 className="flex items-center gap-1 border border-transparent bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:border-destructive/20 hover:bg-destructive/5 hover:text-destructive"
               >
-                <Trash2 className="size-3" />Clear all
+                <Trash2 className="size-3" />
+                Clear all
               </button>
             ) : null}
             <button
               onClick={onNew}
               className="flex items-center gap-1 border border-border bg-background px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <Plus className="size-3" />New
+              <Plus className="size-3" />
+              New
             </button>
           </div>
         </div>
@@ -1808,7 +2199,9 @@ function ChatListPanel({ chats, activeChatId, onSelect, onNew, onDelete, onClear
         {filtered.length === 0 ? (
           <div className="p-5 text-center">
             <MessageSquare className="mx-auto mb-2 size-6 text-muted-foreground/30" />
-            <p className="text-[11px] text-muted-foreground">No workspaces yet</p>
+            <p className="text-[11px] text-muted-foreground">
+              No workspaces yet
+            </p>
           </div>
         ) : (
           filtered.map((chat) => {
@@ -1825,16 +2218,23 @@ function ChatListPanel({ chats, activeChatId, onSelect, onNew, onDelete, onClear
                     className="min-w-0 flex-1 px-4 py-3.5 text-left"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`truncate text-[12px] font-medium ${isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}>
+                      <p
+                        className={`truncate text-[12px] font-medium ${isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
+                      >
                         {chat.title}
                       </p>
-                      {chat.is_favorite && <Heart className="mt-0.5 size-2.5 shrink-0 fill-rose-500 text-rose-500" />}
+                      {chat.is_favorite && (
+                        <Heart className="mt-0.5 size-2.5 shrink-0 fill-rose-500 text-rose-500" />
+                      )}
                     </div>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">{chat.category}</span>
+                      <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                        {chat.category}
+                      </span>
                       {finals.length > 0 && (
                         <span className="flex items-center gap-0.5 font-mono text-[9px] text-primary/70">
-                          <Layers className="size-2" />{finals.length}
+                          <Layers className="size-2" />
+                          {finals.length}
                         </span>
                       )}
                     </div>
@@ -1879,20 +2279,27 @@ export default function WorkspacePage() {
   const initialChatParam = searchParams.get("chat");
   const initialPromptParam = searchParams.get("prompt");
 
-  const [activeChatId, setActiveChatId] = React.useState<string | null>(initialChatParam);
+  const [activeChatId, setActiveChatId] = React.useState<string | null>(
+    initialChatParam,
+  );
   const [inputValue, setInputValue] = React.useState("");
   const [heroPrompt, setHeroPrompt] = React.useState(
     initialPromptParam ? decodeURIComponent(initialPromptParam) : "",
   );
   const [isThinking, setIsThinking] = React.useState(false);
   const [upgradeBanner, setUpgradeBanner] = React.useState(false);
-  const [viewingVersion, setViewingVersion] = React.useState<number | null>(null);
+  const [viewingVersion, setViewingVersion] = React.useState<number | null>(
+    null,
+  );
   const [showTemplatesPanel, setShowTemplatesPanel] = React.useState(false);
   const [showChatList, setShowChatList] = React.useState(false);
-  const [confirmDialog, setConfirmDialog] = React.useState<ConfirmDialogState>(null);
+  const [confirmDialog, setConfirmDialog] =
+    React.useState<ConfirmDialogState>(null);
   const [deepThinkingEnabled, setDeepThinkingEnabled] = React.useState(false);
   const [deepThinkingTouched, setDeepThinkingTouched] = React.useState(false);
-  const [attachedImages, setAttachedImages] = React.useState<{ file: File; preview: string }[]>([]);
+  const [attachedImages, setAttachedImages] = React.useState<
+    { file: File; preview: string }[]
+  >([]);
   const [isUploading, setIsUploading] = React.useState(false);
   const [isDraggingOver, setIsDraggingOver] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
@@ -1903,7 +2310,9 @@ export default function WorkspacePage() {
 
   React.useEffect(() => {
     if (!hydrated) return;
-    if (session === null) { router.push("/?auth=sign-in"); }
+    if (session === null) {
+      router.push("/?auth=sign-in");
+    }
   }, [hydrated, session, router]);
 
   const accessToken = session?.tokens.access_token ?? "";
@@ -1912,24 +2321,31 @@ export default function WorkspacePage() {
   const userQuery = useQuery({
     queryKey: ["user-profile", accessToken],
     queryFn: () => getCurrentUser(accessToken),
-    enabled: Boolean(accessToken), staleTime: 30_000,
+    enabled: Boolean(accessToken),
+    staleTime: 30_000,
   });
   const plansQuery = useQuery({
-    queryKey: ["plans"], queryFn: getPlans,
-    enabled: Boolean(accessToken), staleTime: 5 * 60_000,
+    queryKey: ["plans"],
+    queryFn: getPlans,
+    enabled: Boolean(accessToken),
+    staleTime: 5 * 60_000,
   });
   const user = userQuery.data;
   const sessionPlanId = session?.plan?.plan_id ?? null;
-  const plan = plansQuery.data?.find((p) => p.id === user?.current_plan_id)
-    ?? plansQuery.data?.find((p) => p.id === sessionPlanId)
-    ?? plansQuery.data?.find((p) => p.slug === "free");
+  const plan =
+    plansQuery.data?.find((p) => p.id === user?.current_plan_id) ??
+    plansQuery.data?.find((p) => p.id === sessionPlanId) ??
+    plansQuery.data?.find((p) => p.slug === "free");
   const used = user?.monthly_generation_count ?? 0;
   const limit = plan?.generation_limit ?? 5;
   const planSlug = plan?.slug ?? "free";
   const promptsLeft = Math.max(limit - used, 0);
-  const subscriptionGenerationsRemaining = user?.subscription_generations_remaining ?? promptsLeft;
+  const subscriptionGenerationsRemaining =
+    user?.subscription_generations_remaining ?? promptsLeft;
   const grantedCreditsRemaining = user?.granted_credits_remaining ?? 0;
-  const totalPointsRemaining = user?.total_points_remaining ?? (subscriptionGenerationsRemaining + grantedCreditsRemaining);
+  const totalPointsRemaining =
+    user?.total_points_remaining ??
+    subscriptionGenerationsRemaining + grantedCreditsRemaining;
   const canUseDeepThinking = planSlug !== "free";
 
   /* Chats */
@@ -1940,13 +2356,20 @@ export default function WorkspacePage() {
   });
 
   const activeChat = chats.find((c) => c.id === activeChatId) ?? null;
-  const activeChatDeepThinking = activeChat ? getDeepThinkingPreference(activeChat.messages) : false;
+  const activeChatDeepThinking = activeChat
+    ? getDeepThinkingPreference(activeChat.messages)
+    : false;
   const effectiveDeepThinking = canUseDeepThinking
-    ? (activeChat ? (deepThinkingTouched ? deepThinkingEnabled : activeChatDeepThinking) : deepThinkingEnabled)
+    ? activeChat
+      ? deepThinkingTouched
+        ? deepThinkingEnabled
+        : activeChatDeepThinking
+      : deepThinkingEnabled
     : false;
 
   const finalMessages = React.useMemo(
-    () => (activeChat?.messages ?? []).filter((m) => m.metadata?.is_final === true),
+    () =>
+      (activeChat?.messages ?? []).filter((m) => m.metadata?.is_final === true),
     [activeChat],
   );
 
@@ -1970,7 +2393,10 @@ export default function WorkspacePage() {
     let shownFinal = false;
     return activeChat.messages.filter((m) => {
       if (!m.metadata?.is_final) return true;
-      if (!shownFinal && m === displayedFinal) { shownFinal = true; return true; }
+      if (!shownFinal && m === displayedFinal) {
+        shownFinal = true;
+        return true;
+      }
       return false;
     });
   }, [activeChat, effectiveViewingVersion, finalMessages]);
@@ -1985,7 +2411,12 @@ export default function WorkspacePage() {
     setAttachedImages((prev) => {
       const slots = 4 - prev.length;
       if (slots <= 0) return prev;
-      return [...prev, ...imageFiles.slice(0, slots).map((file) => ({ file, preview: URL.createObjectURL(file) }))];
+      return [
+        ...prev,
+        ...imageFiles
+          .slice(0, slots)
+          .map((file) => ({ file, preview: URL.createObjectURL(file) })),
+      ];
     });
   }
 
@@ -2015,7 +2446,10 @@ export default function WorkspacePage() {
   }
 
   function removeAttachment(idx: number) {
-    setAttachedImages((prev) => { URL.revokeObjectURL(prev[idx].preview); return prev.filter((_, i) => i !== idx); });
+    setAttachedImages((prev) => {
+      URL.revokeObjectURL(prev[idx].preview);
+      return prev.filter((_, i) => i !== idx);
+    });
   }
 
   /* ── Mutations ── */
@@ -2026,31 +2460,52 @@ export default function WorkspacePage() {
       if (attachedImages.length > 0) {
         setIsUploading(true);
         try {
-          imageUrls = await Promise.all(attachedImages.map((a) => uploadToCloudinary(a.file)));
+          imageUrls = await Promise.all(
+            attachedImages.map((a) => uploadToCloudinary(a.file)),
+          );
         } finally {
           setIsUploading(false);
           setAttachedImages([]);
         }
       }
-      return addMessageToChat(activeChatId, content, accessToken, imageUrls, effectiveDeepThinking);
+      return addMessageToChat(
+        activeChatId,
+        content,
+        accessToken,
+        imageUrls,
+        effectiveDeepThinking,
+      );
     },
     onMutate: () => setIsThinking(true),
     onSuccess: (updatedChat) => {
       setIsThinking(false);
-      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-        old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
+      queryClient.setQueryData(
+        ["request-chat-history", accessToken],
+        (old: RequestChatRecord[] | undefined) =>
+          old
+            ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c))
+            : [updatedChat],
+      );
     },
     onError: (err: unknown) => {
       setIsThinking(false);
       toast.error("Failed to send message");
-      if ((err as { status?: number })?.status === 429 || (err as { status?: number })?.status === 403) setUpgradeBanner(true);
+      if (
+        (err as { status?: number })?.status === 429 ||
+        (err as { status?: number })?.status === 403
+      )
+        setUpgradeBanner(true);
     },
   });
 
   const generateFinalMutation = useMutation({
     mutationFn: () => {
       if (!activeChatId) throw new Error("No active chat");
-      return generateFinalPrompt(activeChatId, accessToken, effectiveDeepThinking);
+      return generateFinalPrompt(
+        activeChatId,
+        accessToken,
+        effectiveDeepThinking,
+      );
     },
     onMutate: () => {
       setIsThinking(true);
@@ -2059,21 +2514,37 @@ export default function WorkspacePage() {
     onSuccess: (updatedChat) => {
       setIsThinking(false);
       toast.success("Prompt generated", { id: "generate-prompt" });
-      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-        old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
-      queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
+      queryClient.setQueryData(
+        ["request-chat-history", accessToken],
+        (old: RequestChatRecord[] | undefined) =>
+          old
+            ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c))
+            : [updatedChat],
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["user-profile", accessToken],
+      });
     },
     onError: (err: unknown) => {
       setIsThinking(false);
       toast.error("Failed to generate prompt", { id: "generate-prompt" });
-      if ((err as { status?: number })?.status === 429 || (err as { status?: number })?.status === 403) setUpgradeBanner(true);
+      if (
+        (err as { status?: number })?.status === 429 ||
+        (err as { status?: number })?.status === 403
+      )
+        setUpgradeBanner(true);
     },
   });
 
   const regenerateMutation = useMutation({
     mutationFn: (variationHint?: string) => {
       if (!activeChatId) throw new Error("No active chat");
-      return regenerateFinalPrompt(activeChatId, accessToken, variationHint, effectiveDeepThinking);
+      return regenerateFinalPrompt(
+        activeChatId,
+        accessToken,
+        variationHint,
+        effectiveDeepThinking,
+      );
     },
     onMutate: () => {
       setIsThinking(true);
@@ -2082,23 +2553,43 @@ export default function WorkspacePage() {
     onSuccess: (updatedChat) => {
       setIsThinking(false);
       toast.success("New variation ready", { id: "regen-prompt" });
-      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-        old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
-      queryClient.invalidateQueries({ queryKey: ["user-profile", accessToken] });
+      queryClient.setQueryData(
+        ["request-chat-history", accessToken],
+        (old: RequestChatRecord[] | undefined) =>
+          old
+            ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c))
+            : [updatedChat],
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["user-profile", accessToken],
+      });
     },
     onError: (err: unknown) => {
       setIsThinking(false);
       toast.error("Regeneration failed", { id: "regen-prompt" });
-      if ((err as { status?: number })?.status === 429 || (err as { status?: number })?.status === 403) setUpgradeBanner(true);
+      if (
+        (err as { status?: number })?.status === 429 ||
+        (err as { status?: number })?.status === 403
+      )
+        setUpgradeBanner(true);
     },
   });
 
   const favoriteMutation = useMutation({
     mutationFn: (chatId: string) => toggleFavoriteChat(chatId, accessToken),
     onSuccess: (updatedChat) => {
-      toast.success(updatedChat.is_favorite ? "Added to favorites" : "Removed from favorites");
-      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-        old ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c)) : [updatedChat]);
+      toast.success(
+        updatedChat.is_favorite
+          ? "Added to favorites"
+          : "Removed from favorites",
+      );
+      queryClient.setQueryData(
+        ["request-chat-history", accessToken],
+        (old: RequestChatRecord[] | undefined) =>
+          old
+            ? old.map((c) => (c.id === updatedChat.id ? updatedChat : c))
+            : [updatedChat],
+      );
     },
   });
 
@@ -2109,8 +2600,11 @@ export default function WorkspacePage() {
     },
     onSuccess: (deletedChat) => {
       toast.success("Workspace deleted");
-      queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-        (old ?? []).filter((chat) => chat.id !== deletedChat.id));
+      queryClient.setQueryData(
+        ["request-chat-history", accessToken],
+        (old: RequestChatRecord[] | undefined) =>
+          (old ?? []).filter((chat) => chat.id !== deletedChat.id),
+      );
       if (activeChatId === deletedChat.id) {
         setActiveChatId(null);
         setDeepThinkingEnabled(false);
@@ -2158,7 +2652,10 @@ export default function WorkspacePage() {
   function scrollToFinalPrompt() {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        finalPromptRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        finalPromptRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
   }
@@ -2179,12 +2676,17 @@ export default function WorkspacePage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); handleSend(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleSend();
+    }
   }
 
   function handleChatCreated(chat: RequestChatRecord) {
-    queryClient.setQueryData(["request-chat-history", accessToken], (old: RequestChatRecord[] | undefined) =>
-      old ? [chat, ...old] : [chat]);
+    queryClient.setQueryData(
+      ["request-chat-history", accessToken],
+      (old: RequestChatRecord[] | undefined) => (old ? [chat, ...old] : [chat]),
+    );
     setActiveChatId(chat.id);
     setDeepThinkingEnabled(getDeepThinkingPreference(chat.messages));
     setDeepThinkingTouched(false);
@@ -2204,20 +2706,28 @@ export default function WorkspacePage() {
   }
 
   /* Show nothing while hydrating to avoid flash — redirect effect handles unauthenticated after hydration */
-  if (!hydrated || session === null) return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          {[0, 0.15, 0.3].map((delay, i) => (
-            <span key={i} className="block size-2 rounded-full bg-primary/60"
-              style={{ animation: `thynk-dot 1.1s ease-in-out ${delay}s infinite` }} />
-          ))}
+  if (!hydrated || session === null)
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {[0, 0.15, 0.3].map((delay, i) => (
+              <span
+                key={i}
+                className="block size-2 rounded-full bg-primary/60"
+                style={{
+                  animation: `thynk-dot 1.1s ease-in-out ${delay}s infinite`,
+                }}
+              />
+            ))}
+          </div>
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Loading workspace…
+          </span>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Loading workspace…</span>
+        <style>{`@keyframes thynk-dot{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}`}</style>
       </div>
-      <style>{`@keyframes thynk-dot{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}`}</style>
-    </div>
-  );
+    );
 
   const hasFinalPrompt = finalMessages.length > 0;
   const showGenerateButton = latestClarification?.metadata?.next_action
@@ -2241,7 +2751,11 @@ export default function WorkspacePage() {
             onSelect={(id) => {
               setActiveChatId(id);
               const selectedChat = chats.find((chat) => chat.id === id);
-              setDeepThinkingEnabled(selectedChat ? getDeepThinkingPreference(selectedChat.messages) : false);
+              setDeepThinkingEnabled(
+                selectedChat
+                  ? getDeepThinkingPreference(selectedChat.messages)
+                  : false,
+              );
               setDeepThinkingTouched(false);
               setShowChatList(false);
               window.history.replaceState(null, "", `/workspace?chat=${id}`);
@@ -2263,14 +2777,24 @@ export default function WorkspacePage() {
                 chats={chats}
                 activeChatId={activeChatId}
                 onClearAll={() => setConfirmDialog({ mode: "clear-chats" })}
-                onDelete={(chat) => setConfirmDialog({ mode: "delete-chat", chat })}
+                onDelete={(chat) =>
+                  setConfirmDialog({ mode: "delete-chat", chat })
+                }
                 onSelect={(id) => {
                   setActiveChatId(id);
                   const selectedChat = chats.find((chat) => chat.id === id);
-                  setDeepThinkingEnabled(selectedChat ? getDeepThinkingPreference(selectedChat.messages) : false);
+                  setDeepThinkingEnabled(
+                    selectedChat
+                      ? getDeepThinkingPreference(selectedChat.messages)
+                      : false,
+                  );
                   setDeepThinkingTouched(false);
                   setShowChatList(false);
-                  window.history.replaceState(null, "", `/workspace?chat=${id}`);
+                  window.history.replaceState(
+                    null,
+                    "",
+                    `/workspace?chat=${id}`,
+                  );
                 }}
                 onNew={() => {
                   setActiveChatId(null);
@@ -2281,28 +2805,37 @@ export default function WorkspacePage() {
                 }}
               />
             </div>
-            <div className="flex-1 bg-background/60 backdrop-blur-sm" onClick={() => setShowChatList(false)} />
+            <div
+              className="flex-1 bg-background/60 backdrop-blur-sm"
+              onClick={() => setShowChatList(false)}
+            />
           </div>
         )}
 
         {/* Main content area */}
         <div className="flex flex-1 flex-col overflow-hidden">
-
           {/* ── No active chat: entry hero ── */}
           {!activeChatId ? (
-            <div className="relative flex-1 overflow-y-auto">
-              <button
-                onClick={() => setShowChatList(true)}
-                className="absolute left-4 top-4 z-10 flex items-center gap-1.5 border border-border bg-card px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted md:hidden"
-              >
-                <Clock className="size-3" />History
-              </button>
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Mobile-only top bar for history access */}
+              <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 md:hidden">
+                <button
+                  onClick={() => setShowChatList(true)}
+                  className="flex items-center gap-1.5 border border-border bg-background px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Clock className="size-3" />
+                  History
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
               <ChatEntryHero
                 onCreated={handleChatCreated}
                 promptsLeft={promptsLeft}
                 limit={limit}
                 planSlug={planSlug}
-                subscriptionGenerationsRemaining={subscriptionGenerationsRemaining}
+                subscriptionGenerationsRemaining={
+                  subscriptionGenerationsRemaining
+                }
                 grantedCreditsRemaining={grantedCreditsRemaining}
                 totalPointsRemaining={totalPointsRemaining}
                 onShowTemplates={() => setShowTemplatesPanel(true)}
@@ -2311,12 +2844,13 @@ export default function WorkspacePage() {
                 deepThinkingEnabled={effectiveDeepThinking}
                 onToggleDeepThinking={handleToggleDeepThinking}
               />
+              </div>
             </div>
           ) : (
             /* ── Active workspace ── */
             <>
               {/* Top bar */}
-              <div className="border-b border-border bg-card px-4 py-3">
+              <div className="border-b border-border bg-card px-3 py-3 sm:px-4">
                 <div className="hidden items-center justify-between gap-4 md:flex">
                   <div className="flex min-w-0 items-center gap-3">
                     <button
@@ -2331,7 +2865,9 @@ export default function WorkspacePage() {
                       <ArrowLeft className="size-4" />
                     </button>
                     <div className="min-w-0">
-                      <h1 className="truncate text-[13px] font-semibold leading-none text-foreground">{activeChat?.title}</h1>
+                      <h1 className="truncate text-[13px] font-semibold leading-none text-foreground">
+                        {activeChat?.title}
+                      </h1>
                       <div className="mt-1 flex items-center gap-2">
                         <span className="border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
                           {activeChat?.category}
@@ -2339,7 +2875,8 @@ export default function WorkspacePage() {
                         {hasFinalPrompt && (
                           <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary">
                             <Layers className="size-2.5" />
-                            {finalMessages.length} version{finalMessages.length !== 1 ? "s" : ""}
+                            {finalMessages.length} version
+                            {finalMessages.length !== 1 ? "s" : ""}
                           </span>
                         )}
                         {activeChat?.is_favorite && (
@@ -2349,20 +2886,23 @@ export default function WorkspacePage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {hasFinalPrompt && (
-                      finalMessages.length > 1 ? (
+                    {hasFinalPrompt &&
+                      (finalMessages.length > 1 ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="flex items-center gap-1.5 border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                               <Layers className="size-3.5" />
-                              {effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}
+                              {effectiveViewingVersion === finalMessages.length
+                                ? "Latest prompt"
+                                : `Prompt ${effectiveViewingVersion}`}
                               <ChevronDown className="size-3" />
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56">
                             {finalMessages.map((message, index) => {
                               const version = index + 1;
-                              const isCurrent = version === effectiveViewingVersion;
+                              const isCurrent =
+                                version === effectiveViewingVersion;
                               return (
                                 <DropdownMenuItem
                                   key={message.id}
@@ -2370,7 +2910,11 @@ export default function WorkspacePage() {
                                   className="flex items-center justify-between gap-3"
                                 >
                                   <span className="truncate">
-                                    {getPromptVersionLabel(message, version, finalMessages.length)}
+                                    {getPromptVersionLabel(
+                                      message,
+                                      version,
+                                      finalMessages.length,
+                                    )}
                                   </span>
                                   {isCurrent && (
                                     <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
@@ -2390,8 +2934,7 @@ export default function WorkspacePage() {
                           <Layers className="size-3.5" />
                           View prompt
                         </button>
-                      )
-                    )}
+                      ))}
                     <DeepThinkingToggle
                       enabled={effectiveDeepThinking}
                       canUse={canUseDeepThinking}
@@ -2404,16 +2947,21 @@ export default function WorkspacePage() {
                         onClick={() => generateFinalMutation.mutate()}
                         className="flex items-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                       >
-                        {generateFinalMutation.isPending
-                          ? <><RefreshCw className="size-3.5 animate-spin" />Crystallising…</>
-                          : <>Generate Prompt</>}
+                        {generateFinalMutation.isPending ? (
+                          <>
+                            <RefreshCw className="size-3.5 animate-spin" />
+                            Crystallising…
+                          </>
+                        ) : (
+                          <>Generate Prompt</>
+                        )}
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-3 md:hidden">
-                  <div className="flex items-start gap-3">
+                <div className="space-y-2.5 md:hidden">
+                  <div className="flex items-start gap-2.5">
                     <button
                       onClick={() => {
                         setActiveChatId(null);
@@ -2426,35 +2974,38 @@ export default function WorkspacePage() {
                       <ArrowLeft className="size-4" />
                     </button>
                     <div className="min-w-0 flex-1">
-                      <h1 className="line-clamp-2 text-[20px] font-semibold leading-tight text-foreground">
+                      <h1 className="line-clamp-2 text-[16px] font-semibold leading-tight text-foreground sm:text-[18px]">
                         {activeChat?.title}
                       </h1>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="border border-border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">
                           {activeChat?.category}
                         </span>
                         {hasFinalPrompt && (
-                          <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-primary">
-                            <Layers className="size-3" />
-                            {finalMessages.length} version{finalMessages.length !== 1 ? "s" : ""}
+                          <span className="flex items-center gap-1 border border-primary/20 bg-primary/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-primary">
+                            <Layers className="size-2.5" />
+                            {finalMessages.length}v
                           </span>
                         )}
                         {activeChat?.is_favorite && (
-                          <Heart className="size-3 fill-rose-500 text-rose-500" />
+                          <Heart className="size-2.5 fill-rose-500 text-rose-500" />
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {hasFinalPrompt ? (
                       finalMessages.length > 1 ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button className="col-span-2 flex min-w-0 items-center justify-between gap-2 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                              <span className="flex min-w-0 items-center gap-1.5">
-                                <Layers className="size-3.5 shrink-0" />
-                                <span className="truncate">{effectiveViewingVersion === finalMessages.length ? "Latest prompt" : `Prompt ${effectiveViewingVersion}`}</span>
+                            <button className="flex min-w-0 items-center gap-1.5 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                              <Layers className="size-3.5 shrink-0" />
+                              <span className="truncate">
+                                {effectiveViewingVersion ===
+                                finalMessages.length
+                                  ? "Latest"
+                                  : `Prompt ${effectiveViewingVersion}`}
                               </span>
                               <ChevronDown className="size-3 shrink-0" />
                             </button>
@@ -2462,7 +3013,8 @@ export default function WorkspacePage() {
                           <DropdownMenuContent align="end" className="w-56">
                             {finalMessages.map((message, index) => {
                               const version = index + 1;
-                              const isCurrent = version === effectiveViewingVersion;
+                              const isCurrent =
+                                version === effectiveViewingVersion;
                               return (
                                 <DropdownMenuItem
                                   key={message.id}
@@ -2470,7 +3022,11 @@ export default function WorkspacePage() {
                                   className="flex items-center justify-between gap-3"
                                 >
                                   <span className="truncate">
-                                    {getPromptVersionLabel(message, version, finalMessages.length)}
+                                    {getPromptVersionLabel(
+                                      message,
+                                      version,
+                                      finalMessages.length,
+                                    )}
                                   </span>
                                   {isCurrent && (
                                     <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-primary">
@@ -2485,7 +3041,7 @@ export default function WorkspacePage() {
                       ) : (
                         <button
                           onClick={() => handleOpenPrompt()}
-                          className="col-span-2 flex items-center gap-1.5 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          className="flex items-center gap-1.5 border border-border bg-background px-3 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
                           <Layers className="size-3.5 shrink-0" />
                           View prompt
@@ -2504,11 +3060,16 @@ export default function WorkspacePage() {
                       <button
                         disabled={generateFinalMutation.isPending || isThinking}
                         onClick={() => generateFinalMutation.mutate()}
-                        className="flex items-center justify-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                        className="flex items-center gap-1.5 bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                       >
-                        {generateFinalMutation.isPending
-                          ? <><RefreshCw className="size-3.5 animate-spin" />Crystallising…</>
-                          : <>Generate</>}
+                        {generateFinalMutation.isPending ? (
+                          <>
+                            <RefreshCw className="size-3.5 animate-spin" />
+                            Crystallising…
+                          </>
+                        ) : (
+                          <>Generate</>
+                        )}
                       </button>
                     )}
                   </div>
@@ -2527,26 +3088,45 @@ export default function WorkspacePage() {
                 <div className="flex items-center justify-between border-b border-destructive/20 bg-destructive/5 px-5 py-3">
                   <p className="text-[12px] text-foreground">
                     Prompt limit reached.{" "}
-                    <a href="/pricing" className="font-medium text-primary underline">Upgrade to Pro</a>{" "}
+                    <a
+                      href="/pricing"
+                      className="font-medium text-primary underline"
+                    >
+                      Upgrade to Pro
+                    </a>{" "}
                     for more.
                   </p>
-                  <button onClick={() => setUpgradeBanner(false)} className="text-muted-foreground hover:text-foreground">
+                  <button
+                    onClick={() => setUpgradeBanner(false)}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <X className="size-4" />
                   </button>
                 </div>
               )}
 
               {/* Document-style conversation area */}
-              <div className="flex-1 overflow-y-auto px-4 py-2 md:px-10">
-                <div className="mx-auto max-w-[760px]">
+              <div className="flex-1 overflow-y-auto px-3 py-2 sm:px-4 md:px-10">
+                <div className="mx-auto w-full max-w-[760px]">
                   {/* Dividers between message blocks */}
                   {displayMessages.map((msg, idx) => {
                     const isFinal = msg.metadata?.is_final === true;
-                    const time = new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                    const time = new Date(msg.created_at).toLocaleTimeString(
+                      [],
+                      { hour: "2-digit", minute: "2-digit" },
+                    );
 
                     if (isFinal) {
                       return (
-                        <div key={msg.id} ref={msg === finalMessages[effectiveViewingVersion - 1] ? finalPromptRef : undefined} className="py-6">
+                        <div
+                          key={msg.id}
+                          ref={
+                            msg === finalMessages[effectiveViewingVersion - 1]
+                              ? finalPromptRef
+                              : undefined
+                          }
+                          className="py-6"
+                        >
                           {/* Section header */}
                           <div className="mb-4 flex items-center gap-3">
                             <div className="h-px flex-1 bg-border" />
@@ -2561,13 +3141,22 @@ export default function WorkspacePage() {
                             metadata={msg.metadata}
                             version={effectiveViewingVersion}
                             totalVersions={finalMessages.length}
-                            variationHint={msg.metadata?.variation_hint as string | undefined}
-                            isLatest={effectiveViewingVersion === finalMessages.length}
+                            variationHint={
+                              msg.metadata?.variation_hint as string | undefined
+                            }
+                            isLatest={
+                              effectiveViewingVersion === finalMessages.length
+                            }
                             isFavorite={activeChat?.is_favorite ?? false}
-                            onRegenerate={(hint) => regenerateMutation.mutate(hint)}
+                            onRegenerate={(hint) =>
+                              regenerateMutation.mutate(hint)
+                            }
                             isRegenerating={regenerateMutation.isPending}
                             onViewVersion={handleViewVersion}
-                            onToggleFavorite={() => activeChatId && favoriteMutation.mutate(activeChatId)}
+                            onToggleFavorite={() =>
+                              activeChatId &&
+                              favoriteMutation.mutate(activeChatId)
+                            }
                           />
                         </div>
                       );
@@ -2580,7 +3169,9 @@ export default function WorkspacePage() {
                           <UserBlock
                             content={msg.content}
                             time={time}
-                            imageUrls={msg.metadata?.image_urls as string[] | undefined}
+                            imageUrls={
+                              msg.metadata?.image_urls as string[] | undefined
+                            }
                           />
                         </div>
                       );
@@ -2593,7 +3184,9 @@ export default function WorkspacePage() {
                           content={msg.content}
                           metadata={msg.metadata}
                           time={time}
-                          onOptionSelect={(text) => sendMessageMutation.mutate(text)}
+                          onOptionSelect={(text) =>
+                            sendMessageMutation.mutate(text)
+                          }
                         />
                       </div>
                     );
@@ -2609,15 +3202,22 @@ export default function WorkspacePage() {
               </div>
 
               {/* Input bar */}
-              <div className="border-t border-border bg-card px-4 py-3 md:px-10">
-                <div className="mx-auto max-w-[760px]">
+              <div className="border-t border-border bg-card px-3 py-3 sm:px-4 md:px-10">
+                <div className="mx-auto w-full max-w-[760px]">
                   {/* Image previews */}
                   {attachedImages.length > 0 && (
                     <div className="mb-2 flex flex-wrap gap-2">
                       {attachedImages.map((img, idx) => (
-                        <div key={idx} className="group relative size-14 overflow-hidden border border-border">
+                        <div
+                          key={idx}
+                          className="group relative size-14 overflow-hidden border border-border"
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={img.preview} alt="attachment" className="size-full object-cover" />
+                          <img
+                            src={img.preview}
+                            alt="attachment"
+                            className="size-full object-cover"
+                          />
                           <button
                             onClick={() => removeAttachment(idx)}
                             className="absolute inset-0 flex items-center justify-center bg-background/70 opacity-0 transition-opacity group-hover:opacity-100"
@@ -2641,12 +3241,18 @@ export default function WorkspacePage() {
                         <div className="flex items-center justify-center rounded-full border-2 border-dashed border-primary/50 p-2">
                           <ImagePlus className="size-4 text-primary/70" />
                         </div>
-                        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">Drop to attach</p>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-primary/70">
+                          Drop to attach
+                        </p>
                       </div>
                     )}
                     <textarea
                       ref={inputRef}
-                      placeholder={hasFinalPrompt ? "Request an update or ask a follow-up…" : "Continue refining your prompt…"}
+                      placeholder={
+                        hasFinalPrompt
+                          ? "Request an update or ask a follow-up…"
+                          : "Continue refining your prompt…"
+                      }
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyDown}
@@ -2660,11 +3266,15 @@ export default function WorkspacePage() {
                           {hasFinalPrompt ? "Prompt support" : "Refine context"}
                         </p>
                         <p className="mt-1 hidden text-[11px] text-muted-foreground/45 sm:block">
-                          {hasFinalPrompt ? "Ask for revisions, code, or next-step help." : "Answer follow-up questions and keep shaping the result."}
+                          {hasFinalPrompt
+                            ? "Ask for revisions, code, or next-step help."
+                            : "Answer follow-up questions and keep shaping the result."}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="hidden font-mono text-[9px] text-muted-foreground/30 sm:inline">⌘↵</span>
+                        <span className="hidden font-mono text-[9px] text-muted-foreground/30 sm:inline">
+                          ⌘↵
+                        </span>
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -2681,14 +3291,24 @@ export default function WorkspacePage() {
                           className="flex h-8 items-center gap-1.5 border border-border bg-card px-2.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
                         >
                           <ImagePlus className="size-3" />
-                          <span className="hidden sm:inline">{attachedImages.length > 0 ? `${attachedImages.length}/4` : "Image"}</span>
+                          <span className="hidden sm:inline">
+                            {attachedImages.length > 0
+                              ? `${attachedImages.length}/4`
+                              : "Image"}
+                          </span>
                         </button>
                         <button
                           onClick={handleSend}
-                          disabled={!inputValue.trim() || isThinking || isUploading}
+                          disabled={
+                            !inputValue.trim() || isThinking || isUploading
+                          }
                           className="flex h-8 items-center gap-1.5 bg-primary px-3 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
                         >
-                          {isUploading ? <RefreshCw className="size-3 animate-spin" /> : <Send className="size-3" />}
+                          {isUploading ? (
+                            <RefreshCw className="size-3 animate-spin" />
+                          ) : (
+                            <Send className="size-3" />
+                          )}
                           <span>Send</span>
                         </button>
                       </div>
@@ -2709,17 +3329,11 @@ export default function WorkspacePage() {
                 onClose={() => setShowTemplatesPanel(false)}
               />
             </div>
-            {/* Mobile overlay */}
-            <div className="fixed inset-0 z-50 flex justify-end lg:hidden">
-              <div className="flex w-[300px] flex-col">
-                <TemplatesPanel
-                  onUse={handleUseTemplate}
-                  onClose={() => setShowTemplatesPanel(false)}
-                />
-              </div>
-              <div
-                className="flex-1 bg-background/60 backdrop-blur-sm"
-                onClick={() => setShowTemplatesPanel(false)}
+            {/* Mobile overlay — full screen */}
+            <div className="fixed inset-0 z-50 flex flex-col lg:hidden">
+              <TemplatesPanel
+                onUse={handleUseTemplate}
+                onClose={() => setShowTemplatesPanel(false)}
               />
             </div>
           </>
@@ -2738,7 +3352,9 @@ export default function WorkspacePage() {
               <Trash2 className="size-5" />
             </AlertDialogMedia>
             <AlertDialogTitle>
-              {confirmDialog?.mode === "clear-chats" ? "Clear all workspaces?" : "Delete workspace?"}
+              {confirmDialog?.mode === "clear-chats"
+                ? "Clear all workspaces?"
+                : "Delete workspace?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDialog?.mode === "clear-chats"
@@ -2747,12 +3363,18 @@ export default function WorkspacePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteChatMutation.isPending || clearChatsMutation.isPending}>
+            <AlertDialogCancel
+              disabled={
+                deleteChatMutation.isPending || clearChatsMutation.isPending
+              }
+            >
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={deleteChatMutation.isPending || clearChatsMutation.isPending}
+              disabled={
+                deleteChatMutation.isPending || clearChatsMutation.isPending
+              }
               onClick={() => {
                 if (confirmDialog?.mode === "clear-chats") {
                   clearChatsMutation.mutate();
