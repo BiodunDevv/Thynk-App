@@ -3,168 +3,207 @@
 import * as React from "react";
 import { RefreshCw } from "lucide-react";
 
-const TRIGGER_THRESHOLD = 72;   // px of pull needed to trigger refresh
-const MAX_PULL = 110;           // px — rubber-band ceiling
-const RESISTANCE = 0.42;        // how much drag is applied (lower = more resistance)
+/* ── Tuning constants ─────────────────────────────────────────────── */
+const COMMIT_DELTA   = 14;   // px of intentional downward movement before we lock in
+const TRIGGER_DIST   = 80;   // px of visual pull needed to arm the "ready" state
+const MAX_PULL       = 120;  // px — rubber-band ceiling
+const RESISTANCE     = 0.38; // <1 = more resistance (feels native)
+const AT_TOP_BUFFER  = 4;    // px — tolerates Android's fractional scrollTop values
+const FAST_SWIPE_VEL = 1.8;  // px/ms — above this we treat it as a scroll flick, not PTR
 
-type Phase = "idle" | "pulling" | "ready" | "refreshing" | "done";
+type Phase = "idle" | "pulling" | "ready" | "refreshing";
 
-function isPWA() {
+/* ── Helpers ──────────────────────────────────────────────────────── */
+function isPWA(): boolean {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true)
+    ("standalone" in window.navigator &&
+      (window.navigator as { standalone?: boolean }).standalone === true)
   );
 }
 
-function isScrolledToTop(target: EventTarget | null): boolean {
-  if (!target || !(target instanceof Element)) {
-    return (window.scrollY ?? document.documentElement.scrollTop) <= 0;
+/** Walk up the DOM and find the nearest scrollable ancestor (or window). */
+function findScrollable(el: Element | null): Element | null {
+  while (el && el !== document.documentElement) {
+    const { overflowY } = window.getComputedStyle(el);
+    if (overflowY === "auto" || overflowY === "scroll") return el;
+    el = el.parentElement;
   }
-  return target.scrollTop <= 0;
+  return null;
 }
 
+function scrollTopOf(el: Element | null): number {
+  if (!el) return window.scrollY ?? document.documentElement.scrollTop;
+  return el.scrollTop;
+}
+
+/* ── Component ────────────────────────────────────────────────────── */
 export function PullToRefresh() {
-  const [phase, setPhase] = React.useState<Phase>("idle");
-  const [pullY, setPullY] = React.useState(0);
-  const [visible, setVisible] = React.useState(false);
+  const [phase, setPhase]     = React.useState<Phase>("idle");
+  const [pullY, setPullY]     = React.useState(0);
+  const [show, setShow]       = React.useState(false);
 
-  const startYRef = React.useRef(0);
-  const currentYRef = React.useRef(0);
-  const touchTargetRef = React.useRef<EventTarget | null>(null);
-  const animFrameRef = React.useRef<number>(0);
-  const phaseRef = React.useRef<Phase>("idle");
+  // Refs so event listeners always read fresh values without re-registering
+  const phaseRef      = React.useRef<Phase>("idle");
+  const startY        = React.useRef(0);
+  const startTime     = React.useRef(0);
+  const scrollable    = React.useRef<Element | null>(null);
+  const locked        = React.useRef(false); // true once we've committed to PTR
+  const raf           = React.useRef(0);
 
-  function updatePhase(next: Phase) {
+  function syncPhase(next: Phase) {
     phaseRef.current = next;
     setPhase(next);
   }
 
   React.useEffect(() => {
-    // Only activate in PWA standalone mode
     if (!isPWA()) return;
 
-    function onTouchStart(e: TouchEvent) {
+    /* touchstart — record origin, find scrollable ancestor */
+    function onStart(e: TouchEvent) {
       if (phaseRef.current === "refreshing") return;
-      touchTargetRef.current = e.target;
-      startYRef.current = e.touches[0].clientY;
-      currentYRef.current = e.touches[0].clientY;
+      startY.current    = e.touches[0].clientY;
+      startTime.current = performance.now();
+      locked.current    = false;
+
+      const target = e.target instanceof Element ? e.target : null;
+      scrollable.current = target ? findScrollable(target) : null;
     }
 
-    function onTouchMove(e: TouchEvent) {
+    /* touchmove — the core logic */
+    function onMove(e: TouchEvent) {
       if (phaseRef.current === "refreshing") return;
 
-      const touchY = e.touches[0].clientY;
-      const delta = touchY - startYRef.current;
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - startY.current;
 
-      // Only activate when pulling down from the top of a scrollable area
-      if (delta <= 0 || !isScrolledToTop(touchTargetRef.current)) {
-        if (phaseRef.current === "pulling" || phaseRef.current === "ready") {
-          updatePhase("idle");
-          setPullY(0);
-          setVisible(false);
-        }
+      // Not a downward swipe
+      if (deltaY <= 0) {
+        if (locked.current) release(false);
         return;
       }
 
-      currentYRef.current = touchY;
+      // Reject fast flick-scrolls (user is trying to scroll, not PTR)
+      const elapsed = performance.now() - startTime.current;
+      if (!locked.current && elapsed > 0 && deltaY / elapsed > FAST_SWIPE_VEL) return;
 
-      // Apply rubber-band resistance
-      const raw = delta * RESISTANCE;
-      const clamped = Math.min(raw, MAX_PULL);
-
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = requestAnimationFrame(() => {
-        setVisible(true);
-        setPullY(clamped);
-        updatePhase(clamped >= TRIGGER_THRESHOLD * RESISTANCE ? "ready" : "pulling");
-      });
-
-      // Prevent default scroll only when we are actively pulling the indicator
-      if (delta > 8) {
-        e.preventDefault();
+      // Require the nearest scrollable container (or window) to be at the top
+      if (scrollTopOf(scrollable.current) > AT_TOP_BUFFER) {
+        if (locked.current) release(false);
+        return;
       }
+
+      // Wait for a deliberate committed downward drag before locking in
+      if (!locked.current) {
+        if (deltaY < COMMIT_DELTA) return;
+        locked.current = true;
+      }
+
+      // We own this gesture — prevent the browser's own scroll/bounce
+      e.preventDefault();
+
+      const visual = Math.min(deltaY * RESISTANCE, MAX_PULL);
+
+      cancelAnimationFrame(raf.current);
+      raf.current = requestAnimationFrame(() => {
+        setShow(true);
+        setPullY(visual);
+        syncPhase(visual >= TRIGGER_DIST * RESISTANCE ? "ready" : "pulling");
+      });
     }
 
-    function onTouchEnd() {
+    /* touchend / touchcancel */
+    function onEnd() {
       if (phaseRef.current === "refreshing") return;
-
-      cancelAnimationFrame(animFrameRef.current);
+      cancelAnimationFrame(raf.current);
 
       if (phaseRef.current === "ready") {
-        updatePhase("refreshing");
-        setPullY(TRIGGER_THRESHOLD * RESISTANCE); // settle to trigger position
+        // Arm the refresh
+        syncPhase("refreshing");
+        setPullY(TRIGGER_DIST * RESISTANCE); // settle at trigger line
 
-        // Small delay so the spinner is visible, then reload
         setTimeout(() => {
           window.location.reload();
-        }, 700);
+        }, 750);
       } else {
-        // Snap back
-        updatePhase("idle");
-        setPullY(0);
-        setTimeout(() => setVisible(false), 200);
+        release(false);
+      }
+
+      locked.current = false;
+    }
+
+    function release(keepVisible: boolean) {
+      syncPhase("idle");
+      setPullY(0);
+      if (!keepVisible) {
+        setTimeout(() => setShow(false), 220);
       }
     }
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-    document.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    document.addEventListener("touchstart",  onStart,  { passive: true });
+    document.addEventListener("touchmove",   onMove,   { passive: false });
+    document.addEventListener("touchend",    onEnd,    { passive: true });
+    document.addEventListener("touchcancel", onEnd,    { passive: true });
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
-      document.removeEventListener("touchcancel", onTouchEnd);
-      cancelAnimationFrame(animFrameRef.current);
+      document.removeEventListener("touchstart",  onStart);
+      document.removeEventListener("touchmove",   onMove);
+      document.removeEventListener("touchend",    onEnd);
+      document.removeEventListener("touchcancel", onEnd);
+      cancelAnimationFrame(raf.current);
     };
   }, []);
 
-  if (!visible && phase === "idle") return null;
+  if (!show && phase === "idle") return null;
 
-  const progress = Math.min(pullY / (TRIGGER_THRESHOLD * RESISTANCE), 1);
+  const progress   = Math.min(pullY / (TRIGGER_DIST * RESISTANCE), 1);
   const isSpinning = phase === "refreshing";
-  const isReady = phase === "ready";
+  const isReady    = phase === "ready";
+  const isActive   = isReady || isSpinning;
+
+  // Indicator sits at top; translateY moves it into view as pullY grows
+  const translateY = pullY - 48;
 
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed left-0 right-0 top-0 z-[9999] flex justify-center"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[9999] flex flex-col items-center"
       style={{
-        transform: `translateY(${pullY - 44}px)`,
-        transition: phase === "idle" || phase === "refreshing"
-          ? "transform 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.18s ease"
-          : "none",
-        opacity: visible ? 1 : 0,
+        transform: `translateY(${translateY}px)`,
+        transition:
+          phase === "idle" || phase === "refreshing"
+            ? "transform 0.24s cubic-bezier(0.34,1.4,0.64,1)"
+            : "none",
       }}
     >
+      {/* Spinner disc */}
       <div
-        className={`flex size-10 items-center justify-center border border-border bg-card shadow-lg transition-colors duration-150 ${
-          isReady || isSpinning ? "border-primary/40 bg-primary/5" : ""
+        className={`flex size-11 items-center justify-center border shadow-lg transition-colors duration-150 ${
+          isActive
+            ? "border-primary/40 bg-card"
+            : "border-border bg-card"
         }`}
-        style={{
-          borderRadius: "50%",
-        }}
+        style={{ borderRadius: "50%" }}
       >
         <RefreshCw
           className={`size-4 transition-colors duration-150 ${
-            isReady || isSpinning ? "text-primary" : "text-muted-foreground"
+            isActive ? "text-primary" : "text-muted-foreground/70"
           } ${isSpinning ? "animate-spin" : ""}`}
           style={
             !isSpinning
-              ? { transform: `rotate(${progress * 270}deg)`, transition: "none" }
+              ? {
+                  transform: `rotate(${progress * 260}deg)`,
+                  transition: "none",
+                }
               : undefined
           }
         />
       </div>
 
-      {/* Release hint — only shown when ready */}
-      {isReady && !isSpinning && (
-        <div
-          className="absolute top-11 left-1/2 -translate-x-1/2 border border-border bg-card px-3 py-1 shadow-md"
-          style={{ whiteSpace: "nowrap" }}
-        >
+      {/* "Release to refresh" hint — only when armed */}
+      {isReady && (
+        <div className="mt-1.5 border border-border bg-card px-3 py-1 shadow-md">
           <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-primary">
             Release to refresh
           </span>
